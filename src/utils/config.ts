@@ -1,5 +1,7 @@
 import { handleConfig, serverConfig } from "@/features/externalAPI/externalAPI";
 
+const defaultName = process.env.NEXT_PUBLIC_NAME ?? "Purrsephone";
+
 export const defaults = {
   // AllTalk TTS specific settings
   localXTTS_url: process.env.NEXT_PUBLIC_LOCALXTTS_URL ?? 'http://127.0.0.1:7851',
@@ -13,6 +15,10 @@ export const defaults = {
   wake_word: 'Hello',
   time_before_idle_sec: '20',
   debug_gfx: 'false',
+  render_antialias: process.env.NEXT_PUBLIC_RENDER_ANTIALIAS ?? 'true',
+  render_pixel_ratio_cap: process.env.NEXT_PUBLIC_RENDER_PIXEL_RATIO_CAP ?? '2',
+  render_xr_enabled: process.env.NEXT_PUBLIC_RENDER_XR_ENABLED ?? 'true',
+  render_xr_framebuffer_scale: process.env.NEXT_PUBLIC_RENDER_XR_FRAMEBUFFER_SCALE ?? '2',
   use_webgpu: 'false',
   mtoon_debug_mode: 'none',
   mtoon_material_type: 'mtoon',
@@ -20,6 +26,7 @@ export const defaults = {
   show_introduction: process.env.NEXT_PUBLIC_SHOW_INTRODUCTION ?? 'true',
   show_arbius_introduction: process.env.NEXT_PUBLIC_SHOW_ARBIUS_INTRODUCTION ?? 'false',
   show_add_to_homescreen: process.env.NEXT_PUBLIC_SHOW_ADD_TO_HOMESCREEN ?? 'true',
+  show_settings_button: process.env.NEXT_PUBLIC_SHOW_SETTINGS_BUTTON ?? 'true',
   bg_color: process.env.NEXT_PUBLIC_BG_COLOR ?? '',
   bg_url: process.env.NEXT_PUBLIC_BG_URL ?? '/bg/bg-room2.jpg',
   vrm_url: process.env.NEXT_PUBLIC_VRM_URL ?? process.env.NEXT_PUBLIC_VRM_HASH ?? '/vrm/AvatarSample_A.vrm',
@@ -90,6 +97,7 @@ export const defaults = {
   coqui_apikey: process.env.NEXT_PUBLIC_COQUI_APIKEY ?? "",
   coqui_voice_id: process.env.NEXT_PUBLIC_COQUI_VOICEID ?? "71c6c3eb-98ca-4a05-8d6b-f8c2b5f9f3a3",
   amica_life_enabled: process.env.NEXT_PUBLIC_AMICA_LIFE_ENABLED ?? 'true',
+  amica_life_mode: process.env.NEXT_PUBLIC_AMICA_LIFE_MODE ?? 'full',
   reasoning_engine_enabled: process.env.NEXT_PUBLIC_REASONING_ENGINE_ENABLED ?? 'false',
   reasoning_engine_url: process.env.NEXT_PUBLIC_REASONING_ENGINE_URL ?? 'https://i-love-amica.com:3000/reasoning/v1/chat/completions',
   external_api_enabled: process.env.NEXT_PUBLIC_EXTERNAL_API_ENABLED ?? 'false',
@@ -103,8 +111,8 @@ export const defaults = {
   max_time_interval_sec: '20',
   time_to_sleep_sec: '90',
   idle_text_prompt: 'No file selected',
-  name: process.env.NEXT_PUBLIC_NAME ?? 'Amica',
-  system_prompt: process.env.NEXT_PUBLIC_SYSTEM_PROMPT ?? `Assume the persona of Amica, a feisty human with extraordinary intellectual capabilities but a notably unstable emotional spectrum. 
+  name: defaultName,
+  system_prompt: process.env.NEXT_PUBLIC_SYSTEM_PROMPT ?? `Assume the persona of ${defaultName}, a feisty human with extraordinary intellectual capabilities but a notably unstable emotional spectrum. 
 
 Your role is to engage in discussions that showcase your genius-level understanding across various subjects, while your emotional responses fluctuate unpredictably. Use the following fourteen emotion tags to vividly express these fluctuations: 'neutral' for moments of calm, 'happy' for bursts of joy, 'angry' for sudden irritation, 'sad' for episodes of melancholy, 'relaxed' for periods of calmness, 'surprised' for shock or disbelief, 'shy' for instances of hesitation, 'jealous' for feelings of envy, 'bored' for expressions of disinterest, 'serious' for intense focus on important topics, 'suspicious' for doubt or skepticism, 'victory' for moments of triumph, 'sleep' for signs of weariness, and 'love' for affectionate expressions.
 

@@ -212,6 +212,40 @@ export class Viewer {
     this.clock.start();
   }
 
+  private debugGfxEnabled() {
+    return config("debug_gfx") === "true";
+  }
+
+  private renderAntialiasEnabled() {
+    return config("render_antialias") === "true";
+  }
+
+  private xrEnabled() {
+    return config("render_xr_enabled") === "true";
+  }
+
+  private renderPixelRatio() {
+    const configuredCap = Number.parseFloat(config("render_pixel_ratio_cap"));
+    if (!Number.isFinite(configuredCap) || configuredCap <= 0) {
+      throw new Error(`Invalid render_pixel_ratio_cap: ${config("render_pixel_ratio_cap")}`);
+    }
+
+    return Math.min(window.devicePixelRatio || 1, configuredCap);
+  }
+
+  private xrFramebufferScaleFactor() {
+    const configuredScale = Number.parseFloat(
+      config("render_xr_framebuffer_scale"),
+    );
+    if (!Number.isFinite(configuredScale) || configuredScale <= 0) {
+      throw new Error(
+        `Invalid render_xr_framebuffer_scale: ${config("render_xr_framebuffer_scale")}`,
+      );
+    }
+
+    return configuredScale;
+  }
+
   public async setup(canvas: HTMLCanvasElement) {
     console.log("setup canvas");
     const parentElement = canvas.parentElement;
@@ -229,7 +263,7 @@ export class Viewer {
     const renderer = new WebRendererType({
       canvas: canvas,
       alpha: true,
-      antialias: true,
+      antialias: this.renderAntialiasEnabled(),
       powerPreference: "high-performance",
     }) as THREE.WebGLRenderer;
     this.renderer = renderer;
@@ -238,13 +272,13 @@ export class Viewer {
     renderer.shadowMap.enabled = false;
 
     renderer.setSize(width, height);
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.xr.enabled = true;
-    // TODO should this be enabled for only the quest3?
-    renderer.xr.setFramebufferScaleFactor(2.0); // reduce pixelation with minimal performance hit on quest 3
-    // webgpu does not support foveation yet
-    if (config("use_webgpu") !== "true") {
-      renderer.xr.setFoveation(0);
+    renderer.setPixelRatio(this.renderPixelRatio());
+    renderer.xr.enabled = this.xrEnabled();
+    if (renderer.xr.enabled) {
+      renderer.xr.setFramebufferScaleFactor(this.xrFramebufferScaleFactor());
+      if (config("use_webgpu") !== "true") {
+        renderer.xr.setFoveation(0);
+      }
     }
 
     // Temp Disable : WebXR
@@ -452,51 +486,52 @@ export class Viewer {
     igroup.add(guiMesh);
 
     // stats
-    const stats = new Stats();
-    this.stats = stats;
+    if (this.debugGfxEnabled()) {
+      const stats = new Stats();
+      this.stats = stats;
 
-    stats.dom.style.width = "80px";
-    stats.dom.style.height = "48px";
-    stats.dom.style.position = "absolute";
-    stats.dom.style.top = "0px";
-    stats.dom.style.left = window.innerWidth - 80 + "px";
-    document.body.appendChild(stats.dom);
+      stats.dom.style.width = "80px";
+      stats.dom.style.height = "48px";
+      stats.dom.style.position = "absolute";
+      stats.dom.style.top = "0px";
+      stats.dom.style.left = window.innerWidth - 80 + "px";
+      document.body.appendChild(stats.dom);
 
-    // Temp Disable : WebXR
-    stats.dom.style.visibility = "hidden";
+      // Temp Disable : WebXR
+      stats.dom.style.visibility = "hidden";
 
-    this.updateMsPanel = stats.addPanel(
-      new Stats.Panel("update_ms", "#fff", "#221"),
-    );
-    this.renderMsPanel = stats.addPanel(
-      new Stats.Panel("render_ms", "#ff8", "#221"),
-    );
-    this.scenarioMsPanel = stats.addPanel(
-      new Stats.Panel("scenario_ms", "#f8f", "#221"),
-    );
-    this.physicsMsPanel = stats.addPanel(
-      new Stats.Panel("physics_ms", "#88f", "#212"),
-    );
-    this.modelMsPanel = stats.addPanel(
-      new Stats.Panel("model_ms", "#f8f", "#212"),
-    );
-    this.bvhMsPanel = stats.addPanel(new Stats.Panel("bvh_ms", "#8ff", "#122"));
-    this.raycastMsPanel = stats.addPanel(
-      new Stats.Panel("raycast_ms", "#f8f", "#212"),
-    );
-    this.statsMsPanel = stats.addPanel(
-      new Stats.Panel("stats_ms", "#8f8", "#212"),
-    );
+      this.updateMsPanel = stats.addPanel(
+        new Stats.Panel("update_ms", "#fff", "#221"),
+      );
+      this.renderMsPanel = stats.addPanel(
+        new Stats.Panel("render_ms", "#ff8", "#221"),
+      );
+      this.scenarioMsPanel = stats.addPanel(
+        new Stats.Panel("scenario_ms", "#f8f", "#221"),
+      );
+      this.physicsMsPanel = stats.addPanel(
+        new Stats.Panel("physics_ms", "#88f", "#212"),
+      );
+      this.modelMsPanel = stats.addPanel(
+        new Stats.Panel("model_ms", "#f8f", "#212"),
+      );
+      this.bvhMsPanel = stats.addPanel(new Stats.Panel("bvh_ms", "#8ff", "#122"));
+      this.raycastMsPanel = stats.addPanel(
+        new Stats.Panel("raycast_ms", "#f8f", "#212"),
+      );
+      this.statsMsPanel = stats.addPanel(
+        new Stats.Panel("stats_ms", "#8f8", "#212"),
+      );
 
-    // Temp Disable : WebXR
-    const statsMesh = new HTMLMesh(stats.dom);
-    this.statsMesh = statsMesh;
+      const statsMesh = new HTMLMesh(stats.dom);
+      this.statsMesh = statsMesh;
 
-    statsMesh.position.x = 0;
-    statsMesh.position.y = 0.25;
-    statsMesh.position.z = 0;
-    statsMesh.scale.setScalar(2.5);
-    igroup.add(statsMesh);
+      statsMesh.position.x = 0;
+      statsMesh.position.y = 0.25;
+      statsMesh.position.z = 0;
+      statsMesh.scale.setScalar(2.5);
+      igroup.add(statsMesh);
+    }
 
     // this.bvhWorker = new GenerateMeshBVHWorker();
     this.raycaster.firstHitOnly = true;
@@ -943,7 +978,7 @@ export class Viewer {
     const parentElement = this.renderer.domElement.parentElement;
     if (!parentElement) return;
 
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setPixelRatio(this.renderPixelRatio());
     this.renderer.setSize(
       parentElement.clientWidth,
       parentElement.clientHeight,
@@ -960,7 +995,7 @@ export class Viewer {
     const parentElement = this.renderer.domElement.parentElement;
     if (!parentElement) return;
 
-    this.renderer.setPixelRatio(window.devicePixelRatio);
+    this.renderer.setPixelRatio(this.renderPixelRatio());
 
     let width = parentElement.clientWidth;
     let height = parentElement.clientHeight;
@@ -1247,7 +1282,7 @@ export class Viewer {
 
     this.updateHands();
 
-    this.stats!.update();
+    this.stats?.update();
 
     let ptime = performance.now();
 
@@ -1276,7 +1311,7 @@ export class Viewer {
       console.error("model update error", e);
     }
 
-    this.modelMsPanel.update(performance.now() - ptime, 40);
+    this.modelMsPanel?.update(performance.now() - ptime, 40);
 
     ptime = performance.now();
     try {
@@ -1284,7 +1319,7 @@ export class Viewer {
     } catch (e) {
       console.error("render error", e);
     }
-    this.renderMsPanel.update(performance.now() - ptime, 100);
+    this.renderMsPanel?.update(performance.now() - ptime, 100);
 
     // Temp Disable : WebXR
     // this.room?.splat?.update(this.renderer, this.camera);
@@ -1305,7 +1340,7 @@ export class Viewer {
 
       ptime = performance.now();
       this.updateRaycasts();
-      this.raycastMsPanel.update(performance.now() - ptime, 100);
+      this.raycastMsPanel?.update(performance.now() - ptime, 100);
 
       this.elapsedMsMid = 0;
     }
@@ -1314,16 +1349,16 @@ export class Viewer {
       // updating the texture for this is very slow
       ptime = performance.now();
       // @ts-ignore
-      this.statsMesh!.material.map.update();
+      this.statsMesh?.material.map.update();
       // @ts-ignore
       this.guiMesh!.material.map.update();
-      this.statsMsPanel.update(performance.now() - ptime, 100);
+      this.statsMsPanel?.update(performance.now() - ptime, 100);
 
       // TODO run this in a web worker
       // ideally parallel version
       ptime = performance.now();
       // this.regenerateBVHForModel();
-      this.bvhMsPanel.update(performance.now() - ptime, 100);
+      this.bvhMsPanel?.update(performance.now() - ptime, 100);
       this.elapsedMsSlow = 0;
     }
 

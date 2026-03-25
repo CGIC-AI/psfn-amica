@@ -48,6 +48,30 @@ export class AmicaLife {
     this.isProcessingIdleRunning = false;
   }
 
+  private amicaLifeMode() {
+    return config("amica_life_mode");
+  }
+
+  private animationOnlyMode() {
+    return this.amicaLifeMode() === "animation_only";
+  }
+
+  private initialIdleEvents() {
+    return this.animationOnlyMode() ? ["VRMA"] : [...idleEvents];
+  }
+
+  private shouldReenqueueIdleEvent(eventName: string) {
+    if (eventName === "Sleep") {
+      return false;
+    }
+
+    if (this.animationOnlyMode()) {
+      return eventName === "VRMA";
+    }
+
+    return eventName !== "Subconcious";
+  }
+
   public initialize(viewer: Viewer, chat: Chat, setSubconciousLogs: (subconciousLogs: TimestampedPrompt[]) => void, isChatSpeaking: boolean) {
     this.viewer = viewer;
     this.chat = chat;
@@ -68,7 +92,7 @@ export class AmicaLife {
   // Function for loaded idle text prompt
   public async loadIdleTextPrompt(prompts: string[] | null) {
     if (prompts === null) {
-      idleEvents.forEach((prompt) =>
+      this.initialIdleEvents().forEach((prompt) =>
         this.mainEvents.enqueue({ events: prompt }),
       );
     } else {
@@ -127,13 +151,15 @@ export class AmicaLife {
 
   // Function to check message from user
   public receiveMessageFromUser(message: string) {
-    if (message.toLowerCase().includes('news')) {
+    if (!this.animationOnlyMode() && message.toLowerCase().includes('news')) {
       console.log("Triggering news function call.");
       this.insertFront({events: "News"});
     }
 
     // Re-enqueue subconcious event after get the user input (1 Subconcious events per idle cycle)
-    (!this.containsEvent("Subconcious")) ? this.mainEvents.enqueue({ events: "Subconcious" }) : null;
+    if (!this.animationOnlyMode() && !this.containsEvent("Subconcious")) {
+      this.mainEvents.enqueue({ events: "Subconcious" });
+    }
 
     this.pause();
     this.wakeFromSleep();
@@ -216,7 +242,9 @@ export class AmicaLife {
           console.time(`processing_event ${idleEvent.events}`);
           this.eventProcessing = true;
           await handleIdleEvent(idleEvent, this, this.chat!, this.viewer!);
-          !(idleEvent.events === 'Subconcious' || idleEvent.events === 'Sleep') ? this.mainEvents.enqueue(idleEvent) : null;
+          if (this.shouldReenqueueIdleEvent(idleEvent.events)) {
+            this.mainEvents.enqueue(idleEvent);
+          }
         } else {
           //removed for staging usage
           //console.log("Handling idle event:", "No idle events in queue");

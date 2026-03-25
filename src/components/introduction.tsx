@@ -1,6 +1,6 @@
 import { XMarkIcon } from '@heroicons/react/20/solid';
 import { useState, useCallback } from "react";
-import { updateConfig } from "@/utils/config";
+import { config, updateConfig } from "@/utils/config";
 import { useTranslation, Trans } from 'react-i18next';
 
 export const Introduction = ({ open }: {
@@ -8,6 +8,8 @@ export const Introduction = ({ open }: {
 }) => {
   const [opened, setOpened] = useState(open);
   const { t } = useTranslation();
+  const brand = config("name");
+  const showSettingsButton = config("show_settings_button") === 'true';
 
   if (! opened) {
     return null;
@@ -19,18 +21,18 @@ export const Introduction = ({ open }: {
       <div className="mx-auto max-h-full overflow-auto rounded-lg bg-white/40 p-4 backdrop-blur-lg shadow-lg">
         <div className="my-4">
           <div className="my-8 font-bold text-xl">
-            {t("Welcome to Amica")}
+            {t("Welcome to")} {brand}
           </div>
           <p>{t("amica_intro", `
-            Amica is an open source chatbot interface that provides emotion, vision, animations, self triggered actions, text to speech, and speech to text capabilities.
+            ${brand} is an open source chatbot interface that provides emotion, vision, animations, self triggered actions, text to speech, and speech to text capabilities.
             
             It is designed to be able to be attached to any AI model.
             
             It can be used with any VRM model and is very customizable.
             
-            You can even run Amica on your own computer without an internet connection, or on your phone.
+            You can even run ${brand} on your own computer without an internet connection, or on your phone.
 
-            On launch Amica uses our demo chatbot and TTS server. It may take time to load the first message you send.
+            On launch ${brand} uses our configured chatbot and TTS server. It may take time to load the first message you send.
           `)}
           </p>
         </div>
@@ -39,7 +41,7 @@ export const Introduction = ({ open }: {
             {t("Setup")}
           </div>
           <p>{t('amica_setup', `
-            Click on the top left of the screen to open settings.
+            ${showSettingsButton ? "Click on the top left of the screen to open settings." : "Settings are hidden for kiosk use."}
             
             You can change the voice, character system prompt, share/load/save and attach to different backends or in-browser models. 
             

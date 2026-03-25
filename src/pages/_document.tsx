@@ -5,8 +5,9 @@ import { GoogleAnalytics } from '@next/third-parties/google';
 import Script from 'next/script'
 
 export default function Document() {
-  const title = "Amica - Where Empathy Meets AI";
-  const description = "Amica is your personal 3D companion that can communicate via natural voice chat and vision, with an emotion engine that allows Amica to express feelings, complete tasks and engage on her own.";
+  const brand = process.env.NEXT_PUBLIC_NAME ?? "Purrsephone";
+  const title = `${brand} - Where Empathy Meets AI`;
+  const description = `${brand} is your personal 3D companion that can communicate via natural voice chat and vision, with an emotion engine that allows ${brand} to express feelings, complete tasks and engage on her own.`;
   const imageUrl = "https://amica.arbius.ai/ogp.png";
 
   return (

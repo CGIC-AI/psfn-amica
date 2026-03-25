@@ -7,10 +7,11 @@ async function getResponseStream(
   model: string,
   apiKey?: string,
 ) {
+  const appName = config("name");
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "HTTP-Referer": "https://amica.arbius.ai",
-    "X-Title": "Amica",
+    "X-Title": appName,
   };
 
   if (apiKey && apiKey.trim().length > 0) {

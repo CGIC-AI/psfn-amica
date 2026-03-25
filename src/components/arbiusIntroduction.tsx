@@ -1,10 +1,12 @@
 import { useTranslation } from 'react-i18next';
+import { config } from "@/utils/config";
 
 export const ArbiusIntroduction = ({ open, close }: {
   open: boolean;
   close: () => void;
 }) => {
   const { t } = useTranslation();
+  const brand = config("name");
 
   if (!open) {
     return null;
@@ -16,10 +18,10 @@ export const ArbiusIntroduction = ({ open, close }: {
       <div className="mx-auto max-h-full overflow-auto rounded-lg bg-white/80 p-4 backdrop-blur-lg shadow-lg">
         <div className="my-4">
           <div className="my-8 font-bold text-xl">
-            {t("Welcome to Amica by Arbius")}
+            {t("Welcome to")} {brand} {t("by Arbius")}
           </div>
           <p>{t("arbius_intro", `
-            Amica is the best way for AI to interact with humans. The Arbius interface shows how people may interact with decentralized AI. With this setup, anyone may prompt Amica by spending a small amount of AIUS tokens, and when an Arbius miner solves the prompt, the users connected will receive a response. This is set up as a global demonstration, so do not expect any privacy.
+            ${brand} is the best way for AI to interact with humans. The Arbius interface shows how people may interact with decentralized AI. With this setup, anyone may prompt ${brand} by spending a small amount of AIUS tokens, and when an Arbius miner solves the prompt, the users connected will receive a response. This is set up as a global demonstration, so do not expect any privacy.
           `)}
           </p>
         </div>
@@ -31,7 +33,7 @@ export const ArbiusIntroduction = ({ open, close }: {
             }}
             className="ml-3 inline-flex items-center rounded-md bg-white px-2.5 py-1.5 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50"
           >
-            {t("Continue to Amica")}
+            {t("Continue to")} {brand}
           </button>
         </div>
       </div>

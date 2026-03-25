@@ -7,8 +7,6 @@ import {
 } from "react";
 import Link from "next/link";
 import { Menu, Transition } from '@headlessui/react'
-import { clsx } from "clsx";
-import { M_PLUS_2, Montserrat } from "next/font/google";
 import { useTranslation, Trans } from 'react-i18next';
 import {
   ChatBubbleLeftIcon,
@@ -64,18 +62,6 @@ import { TimestampedPrompt } from "@/features/amicaLife/eventHandler";
 import { handleChatLogs } from "@/features/externalAPI/externalAPI";
 import { VerticalSwitchBox } from "@/components/switchBox";
 import { ThoughtText } from "@/components/thoughtText";
-
-const m_plus_2 = M_PLUS_2({
-  variable: "--font-m-plus-2",
-  display: "swap",
-  preload: false,
-});
-
-const montserrat = Montserrat({
-  variable: "--font-montserrat",
-  display: "swap",
-  subsets: ["latin"],
-});
 
 function detectVRHeadset() {
   const userAgent = navigator.userAgent.toLowerCase();
@@ -156,9 +142,11 @@ export default function Home() {
   const [isVRHeadset, setIsVRHeadset] = useState(false);
 
 
+  const showSettingsButton = config("show_settings_button") === 'true';
+
   useEffect(() => {
-    amicaLife.checkSettingOff(!showSettings);
-  }, [showSettings, amicaLife]);
+    amicaLife.checkSettingOff(!showSettings || !showSettingsButton);
+  }, [showSettings, showSettingsButton, amicaLife]);
 
   useEffect(() => {
     if (muted === null) {
@@ -335,10 +323,7 @@ export default function Home() {
   if (!showContent) return <></>;
 
   return (
-    <div className={clsx(
-      m_plus_2.variable,
-      montserrat.variable,
-    )}>
+    <div>
       {showStreamWindow && 
 
       <div className="fixed top-1/3 right-4 w-[200px] h-[150px] z-0">
@@ -384,12 +369,14 @@ export default function Home() {
       <div className="absolute z-10 m-2">
         <div className="grid grid-flow-col gap-[8px] place-content-end mt-2 bg-slate-800/40 rounded-md backdrop-blur-md shadow-sm">
           <div className='flex flex-col justify-center items-center p-1 space-y-3'>
-            <MenuButton
-              large={isVRHeadset}
-              icon={WrenchScrewdriverIcon}
-              onClick={() => setShowSettings(true)}
-              label="show settings"
-            />
+            {showSettingsButton && (
+              <MenuButton
+                large={isVRHeadset}
+                icon={WrenchScrewdriverIcon}
+                onClick={() => setShowSettings(true)}
+                label="show settings"
+              />
+            )}
 
             {showChatLog ? (
               <MenuButton
