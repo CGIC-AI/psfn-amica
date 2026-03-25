@@ -134,12 +134,15 @@ Here are some examples to guide your responses:
 Remember, each message you provide should be coherent and reflect the complexity of your thoughts combined with your emotional unpredictability. Let’s engage in a conversation that's as intellectually stimulating as it is emotionally dynamic!`,
 };
 
+const deploymentOwnedOverrides = buildDeploymentOwnedOverrides();
+
 export function prefixed(key: string) {
   return `chatvrm_${key}`;
 }
 
 // Ensure syncLocalStorage runs only on the server side and once
 if (typeof window !== "undefined") {
+  applyDeploymentOwnedOverrides();
   (async () => {
     await handleConfig("init");
   })();
@@ -150,6 +153,10 @@ if (typeof window !== "undefined") {
 }
 
 export function config(key: string): string {
+  if (Object.prototype.hasOwnProperty.call(deploymentOwnedOverrides, key)) {
+    return (<any>deploymentOwnedOverrides)[key];
+  }
+
   if (typeof localStorage !== "undefined" && localStorage.hasOwnProperty(prefixed(key))) {
     return (<any>localStorage).getItem(prefixed(key))!;
   }
@@ -194,5 +201,39 @@ export function defaultConfig(key: string): string {
 export async function resetConfig() {
   for (const [key, value] of Object.entries(defaults)) {
     await updateConfig(key, value);
+  }
+}
+
+function buildDeploymentOwnedOverrides(): Record<string, string> {
+  const overrides: Record<string, string> = {};
+
+  if (process.env.NEXT_PUBLIC_VRM_URL || process.env.NEXT_PUBLIC_VRM_HASH) {
+    overrides.vrm_url = defaults.vrm_url;
+    overrides.vrm_hash = "";
+    overrides.vrm_save_type = "web";
+  }
+  if (process.env.NEXT_PUBLIC_NAME) {
+    overrides.name = defaults.name;
+  }
+  if (process.env.NEXT_PUBLIC_SHOW_SETTINGS_BUTTON !== undefined) {
+    overrides.show_settings_button = defaults.show_settings_button;
+  }
+  if (process.env.NEXT_PUBLIC_SHOW_MESSAGE_INPUT !== undefined) {
+    overrides.show_message_input = defaults.show_message_input;
+  }
+  if (process.env.NEXT_PUBLIC_COLLAPSE_MENU_COLUMN !== undefined) {
+    overrides.collapse_menu_column = defaults.collapse_menu_column;
+  }
+
+  return overrides;
+}
+
+function applyDeploymentOwnedOverrides(): void {
+  if (typeof localStorage === "undefined") {
+    return;
+  }
+
+  for (const [key, value] of Object.entries(deploymentOwnedOverrides)) {
+    localStorage.setItem(prefixed(key), value);
   }
 }

@@ -19,6 +19,16 @@ export interface SatelliteAssistantFinalEvent {
   };
 }
 
+export interface SatelliteAssistantSegmentEvent {
+  type: "assistant.segment";
+  data: SatelliteBridgeSessionEventData & {
+    text: string;
+    audioBase64: string;
+    mimeType: string;
+    durationMs?: number;
+  };
+}
+
 export interface SatelliteInterruptEvent {
   type: "interrupt";
   data: SatelliteBridgeSessionEventData;
@@ -26,5 +36,6 @@ export interface SatelliteInterruptEvent {
 
 export type SatelliteBridgeEvent =
   | SatelliteUserFinalEvent
+  | SatelliteAssistantSegmentEvent
   | SatelliteAssistantFinalEvent
   | SatelliteInterruptEvent;

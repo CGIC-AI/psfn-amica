@@ -93,7 +93,7 @@ function validateSatelliteBridgeEvent(event: SatelliteBridgeEvent | null | undef
     return text ? null : "User bridge text is required.";
   }
 
-  if (eventType === "assistant.final") {
+  if (eventType === "assistant.segment" || eventType === "assistant.final") {
     const text = String((event.data as { text?: unknown }).text || "").trim();
     const audioBase64 = String((event.data as { audioBase64?: unknown }).audioBase64 || "").trim();
     const mimeType = String((event.data as { mimeType?: unknown }).mimeType || "").trim();

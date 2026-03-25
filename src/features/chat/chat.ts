@@ -535,6 +535,7 @@ export class Chat {
             this.updateAwake();
             this.bubbleMessage("user", payload.data.text);
             break;
+          case "assistant.segment":
           case "assistant.final":
             void this.enqueueSatelliteAssistantReply(payload.data.text, payload.data.audioBase64);
             break;
