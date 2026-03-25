@@ -17,6 +17,18 @@ async function getResponseStream(
     headers.Authorization = `Bearer ${apiKey.trim()}`;
   }
 
+  if (config("chatbot_backend") === "psfn") {
+    const channelId = config("psfn_channel_id").trim();
+    if (channelId.length === 0) {
+      throw new Error("PSFN channel ID is required when chatbot_backend=psfn");
+    }
+    if (!channelId.startsWith("psfn-amica:")) {
+      throw new Error(`PSFN channel ID must start with psfn-amica:, received "${channelId}"`);
+    }
+    headers["X-PSFN-Channel-Type"] = config("psfn_channel_type").trim() || "psfn-amica";
+    headers["X-PSFN-Channel-ID"] = channelId;
+  }
+
   const res = await fetch(`${url}/v1/chat/completions`, {
     headers: headers,
     method: "POST",
