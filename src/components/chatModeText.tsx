@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Message } from "@/features/chat/messages";
 
 export const ChatModeText = ({ messages }: { messages: Message[] }) => {
+    const showMessageInput = config("show_message_input") === "true";
     const chatScrollRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -16,10 +17,10 @@ export const ChatModeText = ({ messages }: { messages: Message[] }) => {
     }, [messages]);
 
     return (
-        <div className="fixed bottom-0 w-full h-[90%] mb-20 flex flex-col justify-end">
+        <div className={clsx("fixed bottom-0 w-full h-[90%] flex flex-col justify-end", showMessageInput ? "mb-20" : "mb-3")}>
             <div className="w-full h-full overflow-y-auto flex flex-col-reverse">
 
-                <div className="w-full max-w-full mx-auto px-4 md:px-16 flex flex-col">
+                <div className="w-full max-w-full mx-auto px-2 md:px-6 flex flex-col">
                     {messages.map((msg, i) => {
                         return (
                             <div key={i} ref={messages.length - 1 === i ? chatScrollRef : null}>
@@ -67,11 +68,11 @@ function Chat({
                 <div className="shadow-lg backdrop-blur-lg rounded-lg bg-white/70">
 
                     <div className={clsx(
-                        'pr-1 py-3 bg-rose/90 rounded-t-lg text-white font-bold tracking-wider',
-                        role === "assistant" ? "px-8" : "px-8",
+                        'pr-1 py-1.5 bg-rose/90 rounded-t-lg text-white font-bold tracking-wider',
+                        role === "assistant" ? "px-3" : "px-3",
                     )}>
                         <span className={clsx(
-                            "p-4 rounded-lg rounded-tl-none rounded-tr-none shadow-sm",
+                            "px-2.5 py-1 rounded-lg rounded-tl-none rounded-tr-none shadow-sm",
                             role === "assistant" ? "bg-pink-600/80" : "bg-cyan-600/80",
                         )}>
                             {role === "assistant" && config('name').toUpperCase()}
@@ -90,18 +91,18 @@ function Chat({
                     </div>
                     {role === "assistant" && (
                         <div className={clsx(
-                            "px-8 py-4 overflow-y-auto",
-                            unlimited ? 'max-h-32' : 'max-h-[calc(75vh)]',
+                            "px-3 py-2 overflow-y-auto",
+                            unlimited ? 'max-h-[calc(75vh)]' : 'max-h-32',
                         )}>
-                            <div className="min-h-8 max-h-full typography-16 font-bold text-gray-600">
+                            <div className="min-h-8 max-h-full text-[0.9rem] font-semibold leading-5 text-gray-600">
                                 {message.replace(/\[([a-zA-Z]*?)\]/g, "")}
                                 <div ref={scrollRef} />
                             </div>
                         </div>
                     )}
                     {role === "user" && (
-                        <div className="px-8 py-4 max-h-32 overflow-y-auto">
-                            <div className="min-h-8 max-h-full typography-16 font-bold text-gray-600">
+                        <div className="px-3 py-2 max-h-32 overflow-y-auto">
+                            <div className="min-h-8 max-h-full text-[0.9rem] font-semibold leading-5 text-gray-600">
                                 {message.replace(/\[([a-zA-Z]*?)\]/g, "")}
                                 <div ref={scrollRef} />
                             </div>

@@ -1,5 +1,6 @@
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
+import { config } from "@/utils/config";
 
 // necessary because of VAD in MessageInput
 const DynamicMessageInput = dynamic(() =>
@@ -20,12 +21,17 @@ export const MessageInputContainer = ({
   isChatProcessing: boolean;
 }) => {
   const [userMessage, setUserMessage] = useState("");
+  const showMessageInput = config("show_message_input") === "true";
 
   useEffect(() => {
     if (!isChatProcessing) {
       setUserMessage("");
     }
   }, [isChatProcessing]);
+
+  if (!showMessageInput) {
+    return null;
+  }
 
   return (
     <DynamicMessageInput

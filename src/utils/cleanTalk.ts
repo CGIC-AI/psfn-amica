@@ -1,6 +1,9 @@
 import { Talk } from '@/features/chat/messages';
 
 export function cleanTalk(talk: Talk) {
+  // remove roleplay/action markup from spoken output while leaving display text untouched
+  talk.message = talk.message.replace(/\*{1,2}[^*]+\*{1,2}/g, " ");
+
   // remove emoticons
   talk.message = talk.message.replace(/[\u{1F600}-\u{1F64F}]/gu, '');
 
@@ -21,7 +24,7 @@ export function cleanTalk(talk: Talk) {
   talk.message = talk.message.replace(/^:D/gu, '');
 
   // remove double spaces
-  talk.message = talk.message.replace(/  /g, ' ');
+  talk.message = talk.message.replace(/\s{2,}/g, ' ').trim();
 
   return talk;
 }

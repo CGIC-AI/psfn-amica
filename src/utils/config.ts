@@ -27,6 +27,8 @@ export const defaults = {
   show_arbius_introduction: process.env.NEXT_PUBLIC_SHOW_ARBIUS_INTRODUCTION ?? 'false',
   show_add_to_homescreen: process.env.NEXT_PUBLIC_SHOW_ADD_TO_HOMESCREEN ?? 'true',
   show_settings_button: process.env.NEXT_PUBLIC_SHOW_SETTINGS_BUTTON ?? 'true',
+  show_message_input: process.env.NEXT_PUBLIC_SHOW_MESSAGE_INPUT ?? 'true',
+  collapse_menu_column: process.env.NEXT_PUBLIC_COLLAPSE_MENU_COLUMN ?? 'false',
   bg_color: process.env.NEXT_PUBLIC_BG_COLOR ?? '',
   bg_url: process.env.NEXT_PUBLIC_BG_URL ?? '/bg/bg-room2.jpg',
   vrm_url: process.env.NEXT_PUBLIC_VRM_URL ?? process.env.NEXT_PUBLIC_VRM_HASH ?? '/vrm/AvatarSample_A.vrm',

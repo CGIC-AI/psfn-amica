@@ -6,6 +6,7 @@ import { IconButton } from "./iconButton";
 export const AssistantText = ({ message }: { message: string }) => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [unlimited, setUnlimited] = useState(false)
+  const showMessageInput = config("show_message_input") === "true";
 
   // Replace all of the emotion tag in message with ""
   message = message.replace(/\[(.*?)\]/g, "");
@@ -18,12 +19,12 @@ export const AssistantText = ({ message }: { message: string }) => {
   });
 
   return (
-    <div className="fixed bottom-0 left-0 mb-20 w-full">
-      <div className="mx-auto max-w-4xl w-full px-4 md:px-16">
+    <div className={clsx("fixed bottom-0 left-0 w-full", showMessageInput ? "mb-20" : "mb-3")}>
+      <div className="mx-auto max-w-4xl w-full px-2 md:px-6">
         <div className="backdrop-blur-lg rounded-lg">
           <div className="bg-white/70 rounded-lg backdrop-blur-lg shadow-lg">
-            <div className="px-8 pr-1 py-3 bg-rose/90 rounded-t-lg text-white font-bold tracking-wider">
-              <span className="p-4 bg-pink-600/80 rounded-lg rounded-tl-none rounded-tr-none shadow-sm">
+            <div className="px-3 pr-1 py-1.5 bg-rose/90 rounded-t-lg text-white font-bold tracking-wider">
+              <span className="px-2.5 py-1 bg-pink-600/80 rounded-lg rounded-tl-none rounded-tr-none shadow-sm">
                 {config('name').toUpperCase()}
               </span>
               <IconButton
@@ -34,10 +35,10 @@ export const AssistantText = ({ message }: { message: string }) => {
               />
             </div>
             <div className={clsx(
-              "px-8 py-4 overflow-y-auto",
+              "px-3 py-2 overflow-y-auto",
               unlimited ? 'max-h-[calc(75vh)]' : 'max-h-32',
             )}>
-              <div className="min-h-8 max-h-full text-gray-700 typography-16 font-bold">
+              <div className="min-h-8 max-h-full text-[0.9rem] font-semibold leading-5 text-gray-700">
                 {message.replace(/\[([a-zA-Z]*?)\]/g, "")}
                 <div ref={scrollRef} />
               </div>
@@ -48,4 +49,3 @@ export const AssistantText = ({ message }: { message: string }) => {
     </div>
   );
 };
-

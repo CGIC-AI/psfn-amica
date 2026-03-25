@@ -9,6 +9,7 @@ import Link from "next/link";
 import { Menu, Transition } from '@headlessui/react'
 import { useTranslation, Trans } from 'react-i18next';
 import {
+  Bars3Icon,
   ChatBubbleLeftIcon,
   ChatBubbleLeftRightIcon,
   CloudArrowDownIcon,
@@ -16,6 +17,8 @@ import {
   CubeIcon,
   CubeTransparentIcon,
   LanguageIcon,
+  MicrophoneIcon,
+  NoSymbolIcon,
   ShareIcon,
   SpeakerWaveIcon,
   SpeakerXMarkIcon,
@@ -26,6 +29,7 @@ import {
   WrenchScrewdriverIcon,
   SignalIcon,
   AcademicCapIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { IconBrain } from '@tabler/icons-react';
 
@@ -127,6 +131,11 @@ export default function Home() {
   const [showChatMode, setShowChatMode] = useState(false);
   const [showSubconciousText, setShowSubconciousText] = useState(false);
   const [showMoshi, setShowMoshi] = useState(false);
+  const [showMenuColumn, setShowMenuColumn] = useState(
+    config("collapse_menu_column") !== "true",
+  );
+  const [micMuted, setMicMuted] = useState(false);
+  const [micMuteBusy, setMicMuteBusy] = useState(false);
 
   // null indicates havent loaded config yet
   const [muted, setMuted] = useState<boolean|null>(null);
@@ -143,10 +152,18 @@ export default function Home() {
 
 
   const showSettingsButton = config("show_settings_button") === 'true';
+  const collapseMenuColumn = config("collapse_menu_column") === "true";
+  const satelliteBridgeEnabled = config("psfn_satellite_bridge_enabled") === "true";
 
   useEffect(() => {
     amicaLife.checkSettingOff(!showSettings || !showSettingsButton);
   }, [showSettings, showSettingsButton, amicaLife]);
+
+  useEffect(() => {
+    if (!collapseMenuColumn) {
+      setShowMenuColumn(true);
+    }
+  }, [collapseMenuColumn]);
 
   useEffect(() => {
     if (muted === null) {
@@ -177,6 +194,32 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    if (!satelliteBridgeEnabled) {
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const response = await fetch("/api/satelliteBridge/mic");
+        const payload = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(payload?.error ?? `Mic state request failed (${response.status})`);
+        }
+        if (!cancelled) {
+          setMicMuted(Boolean(payload?.muted));
+        }
+      } catch (error) {
+        console.error("Failed to load mic mute state:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [satelliteBridgeEnabled]);
+
+  useEffect(() => {
     if (viewer && videoRef.current && showStreamWindow) {
       viewer.startStreaming(videoRef.current);
     } else {
@@ -187,6 +230,31 @@ export default function Home() {
   function toggleTTSMute() {
     updateConfig('tts_muted', config('tts_muted') === 'true' ? 'false' : 'true')
     setMuted(config('tts_muted') === 'true')
+  }
+
+  async function toggleMicMute() {
+    const nextMuted = !micMuted;
+    setMicMuteBusy(true);
+    try {
+      const response = await fetch("/api/satelliteBridge/mic", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ muted: nextMuted }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(payload?.error ?? `Mic mute update failed (${response.status})`);
+      }
+      setMicMuted(Boolean(payload?.muted));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("Failed to update mic mute state:", error);
+      alert.error("Mic mute failed", message);
+    } finally {
+      setMicMuteBusy(false);
+    }
   }
 
   const toggleState = (
@@ -367,164 +435,195 @@ export default function Home() {
 
       {/* main menu */}
       <div className="absolute z-10 m-2">
-        <div className="grid grid-flow-col gap-[8px] place-content-end mt-2 bg-slate-800/40 rounded-md backdrop-blur-md shadow-sm">
-          <div className='flex flex-col justify-center items-center p-1 space-y-3'>
-            {showSettingsButton && (
+        {collapseMenuColumn && !showMenuColumn ? (
+          <div className="grid grid-flow-col gap-[8px] place-content-end mt-2 bg-slate-800/40 rounded-md backdrop-blur-md shadow-sm">
+            <div className='flex flex-col justify-center items-center p-1'>
               <MenuButton
                 large={isVRHeadset}
-                icon={WrenchScrewdriverIcon}
-                onClick={() => setShowSettings(true)}
-                label="show settings"
+                icon={Bars3Icon}
+                onClick={() => setShowMenuColumn(true)}
+                label="show controls"
               />
-            )}
-
-            {showChatLog ? (
-              <MenuButton
-                large={isVRHeadset}
-                icon={ChatBubbleLeftIcon}
-                onClick={toggleChatLog}
-                label="hide chat log"
-              />
-            ) : (
-              <MenuButton
-                large={isVRHeadset}
-                icon={ChatBubbleLeftRightIcon}
-                onClick={toggleChatLog}
-                label="show chat log"
-              />
-            )}
-
-            { muted ? (
-              <MenuButton
-                large={isVRHeadset}
-                icon={SpeakerXMarkIcon}
-                onClick={toggleTTSMute}
-                label="unmute"
-              />
-            ) : (
-              <MenuButton
-                large={isVRHeadset}
-                icon={SpeakerWaveIcon}
-                onClick={toggleTTSMute}
-                label="mute"
-              />
-            )}
-
-            { webcamEnabled ? (
-              <MenuButton
-                large={isVRHeadset}
-                icon={VideoCameraIcon}
-                onClick={() => setWebcamEnabled(false)}
-                label="disable webcam"
-              />
-            ) : (
-              <MenuButton
-                large={isVRHeadset}
-                icon={VideoCameraSlashIcon}
-                onClick={() => setWebcamEnabled(true)}
-                label="enable webcam"
-              />
-            )}
-
-            <MenuButton
-              large={isVRHeadset}
-              icon={ShareIcon}
-              href="/share"
-              target={isTauri() ? '' : '_blank'}
-              label="share"
-            />
-            <MenuButton
-              large={isVRHeadset}
-              icon={CloudArrowDownIcon}
-              href="/import"
-              label="import"
-            />
-
-            { showSubconciousText ? (
-              <MenuButton
-                large={isVRHeadset}
-                icon={IconBrain}
-                onClick={toggleShowSubconciousText}
-                label="hide subconscious"
-              />
-            ) : (
-              <MenuButton
-                large={isVRHeadset}
-                icon={IconBrain}
-                onClick={toggleShowSubconciousText}
-                label="show subconscious"
-              />
-            )}
-
-            {/* Temp Disable : WebXR */}
-            {/*<MenuButton
-              large={isVRHeadset}
-              icon={CubeTransparentIcon}
-              disabled={!isARSupported}
-              onClick={() => toggleXR('immersive-ar')}
-              label="Augmented Reality"
-            />
-
-            <MenuButton
-              large={isVRHeadset}
-              icon={CubeIcon}
-              disabled={!isVRSupported}
-              onClick={() => toggleXR('immersive-vr')}
-              label="Virtual Reality"
-            />*/}
-
-            <MenuButton
-              large={isVRHeadset}
-              icon={CodeBracketSquareIcon}
-              onClick={() => setShowDebug(true)}
-              label="debug"
-            />
-
-            {/* Temp Disable : WebXR */}
-            {/* { showChatMode ? (
-              <MenuButton
-                large={isVRHeadset}
-                icon={Squares2X2Icon}
-                disabled={viewer.currentSession !== null}
-                onClick={toggleChatMode}
-                label="hide chat mode"
-              />
-            ) : (
-              <MenuButton
-                large={isVRHeadset}
-                icon={SquaresPlusIcon}
-                disabled={viewer.currentSession !== null}
-                onClick={toggleChatMode}
-                label="show chat mode"
-              />
-            )} */}
-
-            <div className="flex flex-row items-center space-x-2">
-                <VerticalSwitchBox
-                  value={showChatMode}
-                  label={""}
-                  onChange={toggleChatMode}
-                />
             </div>
-
-            <div className="flex flex-row items-center space-x-2">
-              { showStreamWindow ? (
-                <SignalIcon
-                  className="h-7 w-7 text-white opacity-100 hover:opacity-50 active:opacity-100 hover:cursor-pointer"
-                  aria-hidden="true"
-                  onClick={() => setShowStreamWindow(false)}
-                />
-              ) : (
-                <SignalIcon
-                  className="h-7 w-7 text-white opacity-50 hover:opacity-100 active:opacity-100 hover:cursor-pointer"
-                  aria-hidden="true"
-                  onClick={() => setShowStreamWindow(true)}
+          </div>
+        ) : (
+          <div className="grid grid-flow-col gap-[8px] place-content-end mt-2 bg-slate-800/40 rounded-md backdrop-blur-md shadow-sm">
+            <div className='flex flex-col justify-center items-center p-1 space-y-3'>
+              {collapseMenuColumn && (
+                <MenuButton
+                  large={isVRHeadset}
+                  icon={XMarkIcon}
+                  onClick={() => setShowMenuColumn(false)}
+                  label="hide controls"
                 />
               )}
+
+              {showSettingsButton && (
+                <MenuButton
+                  large={isVRHeadset}
+                  icon={WrenchScrewdriverIcon}
+                  onClick={() => setShowSettings(true)}
+                  label="show settings"
+                />
+              )}
+
+              {showChatLog ? (
+                <MenuButton
+                  large={isVRHeadset}
+                  icon={ChatBubbleLeftIcon}
+                  onClick={toggleChatLog}
+                  label="hide chat log"
+                />
+              ) : (
+                <MenuButton
+                  large={isVRHeadset}
+                  icon={ChatBubbleLeftRightIcon}
+                  onClick={toggleChatLog}
+                  label="show chat log"
+                />
+              )}
+
+              { muted ? (
+                <MenuButton
+                  large={isVRHeadset}
+                  icon={SpeakerXMarkIcon}
+                  onClick={toggleTTSMute}
+                  label="unmute"
+                />
+              ) : (
+                <MenuButton
+                  large={isVRHeadset}
+                  icon={SpeakerWaveIcon}
+                  onClick={toggleTTSMute}
+                  label="mute"
+                />
+              )}
+
+              {satelliteBridgeEnabled && (
+                <MenuButton
+                  large={isVRHeadset}
+                  icon={micMuted ? NoSymbolIcon : MicrophoneIcon}
+                  onClick={toggleMicMute}
+                  disabled={micMuteBusy}
+                  label={micMuted ? "unmute mic" : "mute mic"}
+                />
+              )}
+
+              { webcamEnabled ? (
+                <MenuButton
+                  large={isVRHeadset}
+                  icon={VideoCameraIcon}
+                  onClick={() => setWebcamEnabled(false)}
+                  label="disable webcam"
+                />
+              ) : (
+                <MenuButton
+                  large={isVRHeadset}
+                  icon={VideoCameraSlashIcon}
+                  onClick={() => setWebcamEnabled(true)}
+                  label="enable webcam"
+                />
+              )}
+
+              <MenuButton
+                large={isVRHeadset}
+                icon={ShareIcon}
+                href="/share"
+                target={isTauri() ? '' : '_blank'}
+                label="share"
+              />
+              <MenuButton
+                large={isVRHeadset}
+                icon={CloudArrowDownIcon}
+                href="/import"
+                label="import"
+              />
+
+              { showSubconciousText ? (
+                <MenuButton
+                  large={isVRHeadset}
+                  icon={IconBrain}
+                  onClick={toggleShowSubconciousText}
+                  label="hide subconscious"
+                />
+              ) : (
+                <MenuButton
+                  large={isVRHeadset}
+                  icon={IconBrain}
+                  onClick={toggleShowSubconciousText}
+                  label="show subconscious"
+                />
+              )}
+
+              {/* Temp Disable : WebXR */}
+              {/*<MenuButton
+                large={isVRHeadset}
+                icon={CubeTransparentIcon}
+                disabled={!isARSupported}
+                onClick={() => toggleXR('immersive-ar')}
+                label="Augmented Reality"
+              />
+
+              <MenuButton
+                large={isVRHeadset}
+                icon={CubeIcon}
+                disabled={!isVRSupported}
+                onClick={() => toggleXR('immersive-vr')}
+                label="Virtual Reality"
+              />*/}
+
+              <MenuButton
+                large={isVRHeadset}
+                icon={CodeBracketSquareIcon}
+                onClick={() => setShowDebug(true)}
+                label="debug"
+              />
+
+              {/* Temp Disable : WebXR */}
+              {/* { showChatMode ? (
+                <MenuButton
+                  large={isVRHeadset}
+                  icon={Squares2X2Icon}
+                  disabled={viewer.currentSession !== null}
+                  onClick={toggleChatMode}
+                  label="hide chat mode"
+                />
+              ) : (
+                <MenuButton
+                  large={isVRHeadset}
+                  icon={SquaresPlusIcon}
+                  disabled={viewer.currentSession !== null}
+                  onClick={toggleChatMode}
+                  label="show chat mode"
+                />
+              )} */}
+
+              <div className="flex flex-row items-center space-x-2">
+                  <VerticalSwitchBox
+                    value={showChatMode}
+                    label={""}
+                    onChange={toggleChatMode}
+                  />
+              </div>
+
+              <div className="flex flex-row items-center space-x-2">
+                { showStreamWindow ? (
+                  <SignalIcon
+                    className="h-7 w-7 text-white opacity-100 hover:opacity-50 active:opacity-100 hover:cursor-pointer"
+                    aria-hidden="true"
+                    onClick={() => setShowStreamWindow(false)}
+                  />
+                ) : (
+                  <SignalIcon
+                    className="h-7 w-7 text-white opacity-50 hover:opacity-100 active:opacity-100 hover:cursor-pointer"
+                    aria-hidden="true"
+                    onClick={() => setShowStreamWindow(true)}
+                  />
+                )}
+              </div>
             </div>
-            
           </div>
-        </div>    
+        )}
       </div>
 
       {showChatLog && <ChatLog messages={chatLog} />}
