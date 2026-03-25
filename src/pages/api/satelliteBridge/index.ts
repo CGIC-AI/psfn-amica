@@ -34,12 +34,12 @@ export default function handler(req: NextApiRequest, res: NextApiResponse): void
     return;
   }
 
-  const expectedToken = process.env.PSFN_BRIDGE_TOKEN?.trim();
+  const expectedToken = process.env.AMICA_BRIDGE_TOKEN?.trim();
   if (!expectedToken) {
-    res.status(503).json({ error: "PSFN_BRIDGE_TOKEN is required." });
+    res.status(503).json({ error: "AMICA_BRIDGE_TOKEN is required." });
     return;
   }
-  const providedToken = String(req.headers["x-psfn-bridge-token"] || "").trim();
+  const providedToken = String(req.headers["x-amica-bridge-token"] || "").trim();
   if (!providedToken || providedToken !== expectedToken) {
     res.status(401).json({ error: "Invalid bridge token." });
     return;

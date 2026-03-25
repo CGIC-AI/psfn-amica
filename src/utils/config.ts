@@ -44,7 +44,7 @@ export const defaults = {
   openai_url: process.env.NEXT_PUBLIC_OPENAI_URL ?? 'https://api.openai.com',
   openai_model: process.env.NEXT_PUBLIC_OPENAI_MODEL ?? 'mlabonne/NeuralDaredevil-8B-abliterated',
   http_referer: process.env.NEXT_PUBLIC_HTTP_REFERER ?? '',
-  psfn_channel_type: process.env.NEXT_PUBLIC_PSFN_CHANNEL_TYPE ?? 'psfn',
+  psfn_channel_type: process.env.NEXT_PUBLIC_PSFN_CHANNEL_TYPE ?? '',
   psfn_channel_id: process.env.NEXT_PUBLIC_PSFN_CHANNEL_ID ?? '',
   psfn_satellite_bridge_enabled: process.env.NEXT_PUBLIC_PSFN_SATELLITE_BRIDGE_ENABLED ?? 'false',
   llamacpp_url: process.env.NEXT_PUBLIC_LLAMACPP_URL ?? 'http://127.0.0.1:8080',
@@ -94,7 +94,7 @@ export const defaults = {
   kokoro_voice: process.env.NEXT_PUBLIC_KOKORO_VOICE ?? 'af_bella',
   piper_url: process.env.NEXT_PUBLIC_PIPER_URL ?? 'http://localhost:5000/tts',
   elevenlabs_apikey: process.env.NEXT_PUBLIC_ELEVENLABS_APIKEY ??'',
-  elevenlabs_voiceid: process.env.NEXT_PUBLIC_ELEVENLABS_VOICEID ?? '21m00Tcm4TlvDq8ikWAM',
+  elevenlabs_voiceid: process.env.NEXT_PUBLIC_ELEVENLABS_VOICEID ?? '',
   elevenlabs_model: process.env.NEXT_PUBLIC_ELEVENLABS_MODEL ?? 'eleven_monolingual_v1',
   speecht5_speaker_embedding_url: process.env.NEXT_PUBLIC_SPEECHT5_SPEAKER_EMBEDDING_URL ?? '/speecht5_speaker_embeddings/cmu_us_slt_arctic-wav-arctic_a0001.bin',
   coqui_apikey: process.env.NEXT_PUBLIC_COQUI_APIKEY ?? "",
@@ -214,6 +214,21 @@ function buildDeploymentOwnedOverrides(): Record<string, string> {
   }
   if (process.env.NEXT_PUBLIC_PSFN_CHANNEL_TYPE !== undefined) {
     overrides.psfn_channel_type = defaults.psfn_channel_type;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_CHANNEL_ID !== undefined) {
+    overrides.psfn_channel_id = defaults.psfn_channel_id;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_SATELLITE_BRIDGE_ENABLED !== undefined) {
+    overrides.psfn_satellite_bridge_enabled = defaults.psfn_satellite_bridge_enabled;
+  }
+  if (process.env.NEXT_PUBLIC_CHATBOT_BACKEND !== undefined) {
+    overrides.chatbot_backend = defaults.chatbot_backend;
+  }
+  if (process.env.NEXT_PUBLIC_TTS_BACKEND !== undefined) {
+    overrides.tts_backend = defaults.tts_backend;
+  }
+  if (process.env.NEXT_PUBLIC_ELEVENLABS_VOICEID !== undefined) {
+    overrides.elevenlabs_voiceid = defaults.elevenlabs_voiceid;
   }
   if (process.env.NEXT_PUBLIC_OPENAI_URL !== undefined) {
     overrides.openai_url = defaults.openai_url;
