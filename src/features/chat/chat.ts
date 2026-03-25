@@ -39,6 +39,7 @@ import { cleanTalk } from "@/utils/cleanTalk";
 import { processResponse } from "@/utils/processResponse";
 import { wait } from "@/utils/wait";
 import isDev from '@/utils/isDev';
+import type { SatelliteBridgeEvent } from "@/features/psfnSatelliteBridge/types";
 
 import { isCharacterIdle, characterIdleTime, resetIdleTimer } from "@/utils/isIdle";
 import { getOpenRouterChatResponseStream } from './openRouterChat';
@@ -96,6 +97,7 @@ export class Chat {
   public currentStreamIdx: number;
 
   private eventSource: EventSource | null = null
+  private satelliteEventSource: EventSource | null = null;
 
   constructor() {
     this.initialized = false;
@@ -149,6 +151,7 @@ export class Chat {
     this.initialized = true;
 
     this.initSSE();
+    this.initSatelliteBridge();
   }
 
   public setMessageList(messages: Message[]) {
@@ -368,7 +371,8 @@ export class Chat {
     // TODO if llm type is llama.cpp, we can send /stop message here
     this.ttsJobs.clear();
     this.speakJobs.clear();
-    // TODO stop viewer from speaking
+    this.viewer?.model?.stopSpeaking();
+    this.setChatSpeaking?.(false);
   }
 
   // this happens either from text or from voice / whisper completion
@@ -512,6 +516,69 @@ export class Chat {
         this.eventSource = null;
     }
 }
+
+  public initSatelliteBridge() {
+    if (config("psfn_satellite_bridge_enabled") !== "true") {
+      return;
+    }
+
+    this.closeSatelliteBridge();
+    this.satelliteEventSource = new EventSource("/api/satelliteBridge/");
+    this.satelliteEventSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data) as SatelliteBridgeEvent;
+        if (payload.data.sessionId !== config("psfn_channel_id").trim()) {
+          return;
+        }
+        switch (payload.type) {
+          case "user.final":
+            this.updateAwake();
+            this.bubbleMessage("user", payload.data.text);
+            break;
+          case "assistant.final":
+            void this.enqueueSatelliteAssistantReply(payload.data.text, payload.data.audioBase64);
+            break;
+          case "interrupt":
+            this.handleSatelliteInterrupt();
+            break;
+        }
+      } catch (error) {
+        console.error("Error parsing satellite bridge event:", error);
+      }
+    };
+    this.satelliteEventSource.onerror = (error) => {
+      console.error("Error in satellite bridge connection:", error);
+      this.closeSatelliteBridge();
+      setTimeout(() => this.initSatelliteBridge(), 500);
+    };
+  }
+
+  public closeSatelliteBridge() {
+    if (this.satelliteEventSource) {
+      console.log("Closing existing satellite bridge connection...");
+      this.satelliteEventSource.close();
+      this.satelliteEventSource = null;
+    }
+  }
+
+  private async enqueueSatelliteAssistantReply(text: string, audioBase64: string) {
+    const audioBuffer = decodeBase64Audio(audioBase64);
+    const screenplay = textsToScreenplay([text])[0];
+    if (!screenplay) {
+      return;
+    }
+    this.speakJobs.enqueue({
+      audioBuffer,
+      screenplay,
+      streamIdx: this.currentStreamIdx,
+    });
+  }
+
+  private handleSatelliteInterrupt() {
+    this.speakJobs.clear();
+    this.viewer?.model?.stopSpeaking();
+    this.setChatSpeaking?.(false);
+  }
 
   public async makeAndHandleStream(messages: Message[]) {
     try {
@@ -809,4 +876,13 @@ export class Chat {
       this.alert?.error("Failed to get vision response", e.toString());
     }
   }
+}
+
+function decodeBase64Audio(encoded: string): ArrayBuffer {
+  const binary = window.atob(encoded);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes.buffer;
 }
