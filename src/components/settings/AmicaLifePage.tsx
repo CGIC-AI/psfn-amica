@@ -99,7 +99,7 @@ export function AmicaLifePage({
                         <SwitchBox
                             value={amicaLifeEnabled}
                             label={`${t("Amica Life")} ${t("Enabled")} ${t("(Disable to improve performance)")}`}
-                            disabled={["echo", "moshi"].includes(config("chatbot_backend"))                            }
+                            disabled={["echo", "moshi", "psfn"].includes(config("chatbot_backend"))                            }
                             onChange={(value: boolean) => {
                                 setAmicaLifeEnabled(value);
                                 updateConfig("amica_life_enabled", value.toString());
@@ -114,7 +114,7 @@ export function AmicaLifePage({
                         <SwitchBox
                             value={reasoningEngineEnabled}
                             label={`${t("Reasoning Engine")} ${t("Enabled")} ${t("(Disable to improve performance)")}`}
-                            disabled={config("chatbot_backend") === "echo"}
+                            disabled={["echo", "psfn"].includes(config("chatbot_backend"))}
                             onChange={(value: boolean) => {
                                 setReasoningEngineEnabled(value);
                                 updateConfig("reasoning_engine_enabled", value.toString());

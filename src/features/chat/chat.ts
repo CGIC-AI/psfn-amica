@@ -722,6 +722,7 @@ export class Chat {
       case "arbius_llm":
         return getArbiusChatResponseStream(messages);
       case "chatgpt":
+      case "psfn":
         return getOpenAiChatResponseStream(messages);
       case "llamacpp":
         return getLlamaCppChatResponseStream(messages);

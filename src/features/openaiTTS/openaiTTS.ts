@@ -3,12 +3,16 @@ import { config } from '@/utils/config';
 export async function openaiTTS(
   message: string,
 ) {
-  const apiKey = config("openai_tts_apikey");
-  if (!apiKey) {
-    throw new Error("Invalid OpenAI TTS API Key");
-  }
+  const apiKey = config("openai_tts_apikey").trim();
 
   try {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+    };
+    if (apiKey.length > 0) {
+      headers.Authorization = `Bearer ${apiKey}`;
+    }
+
     const res = await fetch(`${config("openai_tts_url")}/v1/audio/speech`, {
       method: "POST",
       body: JSON.stringify({
@@ -16,10 +20,7 @@ export async function openaiTTS(
         input: message,
         voice: config("openai_tts_voice"),
       }),
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`,
-      },
+      headers,
     });
     if (! res.ok) {
       console.error(res);

@@ -4,10 +4,7 @@ export async function openaiWhisper(
   file: File,
   prompt?: string,
 ) {
-  const apiKey = config("openai_whisper_apikey");
-  if (!apiKey) {
-    throw new Error("Invalid OpenAI Whisper API Key");
-  }
+  const apiKey = config("openai_whisper_apikey").trim();
 
   // Request body
   const formData = new FormData();
@@ -20,12 +17,15 @@ export async function openaiWhisper(
 
   console.debug('whisper-openai req', formData);
 
+  const headers: Record<string, string> = {};
+  if (apiKey.length > 0) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
   const res = await fetch(`${config("openai_whisper_url")}/v1/audio/transcriptions`, {
     method: "POST",
     body: formData,
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-    },
+    headers,
   });
   if (! res.ok) {
     throw new Error(`OpenAI Whisper API Error (${res.status})`);

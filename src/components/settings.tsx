@@ -39,6 +39,7 @@ import { CharacterAnimationPage } from './settings/CharacterAnimationPage';
 import { ChatbotBackendPage } from './settings/ChatbotBackendPage';
 import { ArbiusLLMSettingsPage } from './settings/ArbiusLLMSettingsPage';
 import { ChatGPTSettingsPage } from './settings/ChatGPTSettingsPage';
+import { PsfnSettingsPage } from './settings/PsfnSettingsPage';
 import { LlamaCppSettingsPage } from './settings/LlamaCppSettingsPage';
 import { OllamaSettingsPage } from './settings/OllamaSettingsPage';
 import { KoboldAiSettingsPage } from './settings/KoboldAiSettingsPage';
@@ -256,7 +257,7 @@ export const Settings = ({
 
   useEffect(() => {
     // Change the chatbot to 'llamacpp' if Amica Life is enabled and previous chatbot was 'echo'
-    if (amicaLifeEnabled && ["echo", "moshi"].includes(config("chatbot_backend"))) {
+    if (amicaLifeEnabled && ["echo", "moshi", "psfn"].includes(config("chatbot_backend"))) {
       setAmicaLifeEnabled(false);
     }
   }, [chatbotBackend, amicaLifeEnabled]);
@@ -363,7 +364,7 @@ export const Settings = ({
 
     case 'chatbot':
       return <MenuPage
-        keys={["chatbot_backend", "name", "system_prompt", "arbius_llm_settings", "chatgpt_settings", "llamacpp_settings", "ollama_settings", "koboldai_settings", "moshi_settings", "openrouter_settings"]}
+        keys={["chatbot_backend", "name", "system_prompt", "arbius_llm_settings", "chatgpt_settings", "psfn_settings", "llamacpp_settings", "ollama_settings", "koboldai_settings", "moshi_settings", "openrouter_settings"]}
         menuClick={handleMenuClick} />;
 
     case 'language':
@@ -470,6 +471,17 @@ export const Settings = ({
 
     case 'chatgpt_settings':
       return <ChatGPTSettingsPage
+        openAIApiKey={openAIApiKey}
+        setOpenAIApiKey={setOpenAIApiKey}
+        openAIUrl={openAIUrl}
+        setOpenAIUrl={setOpenAIUrl}
+        openAIModel={openAIModel}
+        setOpenAIModel={setOpenAIModel}
+        setSettingsUpdated={setSettingsUpdated}
+        />
+
+    case 'psfn_settings':
+      return <PsfnSettingsPage
         openAIApiKey={openAIApiKey}
         setOpenAIApiKey={setOpenAIApiKey}
         openAIUrl={openAIUrl}
