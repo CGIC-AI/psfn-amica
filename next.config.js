@@ -1,6 +1,7 @@
 const CopyPlugin = require("copy-webpack-plugin");
 const withPWA = require("@ducanh2912/next-pwa").default({
   dest: "public",
+  disable: process.env.NEXT_DISABLE_PWA === "true",
 });
 
 const output = process.env.NEXT_OUTPUT || undefined;

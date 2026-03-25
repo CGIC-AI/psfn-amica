@@ -29,7 +29,6 @@ import {
   WrenchScrewdriverIcon,
   SignalIcon,
   AcademicCapIcon,
-  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import { IconBrain } from '@tabler/icons-react';
 
@@ -149,15 +148,15 @@ export default function Home() {
   const [isVRSupported, setIsVRSupported] = useState(false);
 
   const [isVRHeadset, setIsVRHeadset] = useState(false);
-
-
-  const showSettingsButton = config("show_settings_button") === 'true';
   const collapseMenuColumn = config("collapse_menu_column") === "true";
+  const showSettingsButton = config("show_settings_button") === "true";
+  const settingsControlEnabled = collapseMenuColumn || showSettingsButton;
   const satelliteBridgeEnabled = config("psfn_satellite_bridge_enabled") === "true";
 
+
   useEffect(() => {
-    amicaLife.checkSettingOff(!showSettings || !showSettingsButton);
-  }, [showSettings, showSettingsButton, amicaLife]);
+    amicaLife.checkSettingOff(!showSettings);
+  }, [showSettings, amicaLife]);
 
   useEffect(() => {
     if (!collapseMenuColumn) {
@@ -452,13 +451,13 @@ export default function Home() {
               {collapseMenuColumn && (
                 <MenuButton
                   large={isVRHeadset}
-                  icon={XMarkIcon}
+                  icon={Bars3Icon}
                   onClick={() => setShowMenuColumn(false)}
                   label="hide controls"
                 />
               )}
 
-              {showSettingsButton && (
+              {settingsControlEnabled && (
                 <MenuButton
                   large={isVRHeadset}
                   icon={WrenchScrewdriverIcon}
@@ -555,22 +554,22 @@ export default function Home() {
                 />
               )}
 
-              {/* Temp Disable : WebXR */}
-              {/*<MenuButton
-                large={isVRHeadset}
-                icon={CubeTransparentIcon}
-                disabled={!isARSupported}
-                onClick={() => toggleXR('immersive-ar')}
-                label="Augmented Reality"
-              />
+            {/* Temp Disable : WebXR */}
+            {/*<MenuButton
+              large={isVRHeadset}
+              icon={CubeTransparentIcon}
+              disabled={!isARSupported}
+              onClick={() => toggleXR('immersive-ar')}
+              label="Augmented Reality"
+            />
 
-              <MenuButton
-                large={isVRHeadset}
-                icon={CubeIcon}
-                disabled={!isVRSupported}
-                onClick={() => toggleXR('immersive-vr')}
-                label="Virtual Reality"
-              />*/}
+            <MenuButton
+              large={isVRHeadset}
+              icon={CubeIcon}
+              disabled={!isVRSupported}
+              onClick={() => toggleXR('immersive-vr')}
+              label="Virtual Reality"
+            />*/}
 
               <MenuButton
                 large={isVRHeadset}
@@ -579,24 +578,24 @@ export default function Home() {
                 label="debug"
               />
 
-              {/* Temp Disable : WebXR */}
-              {/* { showChatMode ? (
-                <MenuButton
-                  large={isVRHeadset}
-                  icon={Squares2X2Icon}
-                  disabled={viewer.currentSession !== null}
-                  onClick={toggleChatMode}
-                  label="hide chat mode"
-                />
-              ) : (
-                <MenuButton
-                  large={isVRHeadset}
-                  icon={SquaresPlusIcon}
-                  disabled={viewer.currentSession !== null}
-                  onClick={toggleChatMode}
-                  label="show chat mode"
-                />
-              )} */}
+            {/* Temp Disable : WebXR */}
+            {/* { showChatMode ? (
+              <MenuButton
+                large={isVRHeadset}
+                icon={Squares2X2Icon}
+                disabled={viewer.currentSession !== null}
+                onClick={toggleChatMode}
+                label="hide chat mode"
+              />
+            ) : (
+              <MenuButton
+                large={isVRHeadset}
+                icon={SquaresPlusIcon}
+                disabled={viewer.currentSession !== null}
+                onClick={toggleChatMode}
+                label="show chat mode"
+              />
+            )} */}
 
               <div className="flex flex-row items-center space-x-2">
                   <VerticalSwitchBox
