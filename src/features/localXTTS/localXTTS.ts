@@ -4,12 +4,16 @@ export async function localXTTSTTS(message: string) {
   const baseUrl = config("localXTTS_url")
     .replace(/\/+$/, '')
     .replace('/api/tts-generate', '');
+  const voice = config("alltalk_voice").trim();
+  if (!voice) {
+    throw new Error("AllTalk voice is required when tts_backend=localXTTS");
+  }
 
   // Log the config values for debugging
   console.log('[AllTalk] Config values:', {
     url: config("localXTTS_url"),
     version: config("alltalk_version"),
-    voice: config("alltalk_voice"),
+    voice,
     rvcVoice: config("alltalk_rvc_voice"),
     rvcPitch: config("alltalk_rvc_pitch"),
     language: config("alltalk_language")
@@ -18,9 +22,9 @@ export async function localXTTSTTS(message: string) {
   const formData = new URLSearchParams({
     text_input: message,
     text_filtering: 'standard',
-    character_voice_gen: config("alltalk_voice") || 'female_01.wav',
+    character_voice_gen: voice,
     narrator_enabled: 'false',
-    narrator_voice_gen: config("alltalk_voice") || 'female_01.wav',
+    narrator_voice_gen: voice,
     text_not_inside: 'character',
     language: config("alltalk_language") || 'en',
     output_file_name: 'amica_output',

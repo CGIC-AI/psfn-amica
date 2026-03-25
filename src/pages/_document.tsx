@@ -5,10 +5,10 @@ import { GoogleAnalytics } from '@next/third-parties/google';
 import Script from 'next/script'
 
 export default function Document() {
-  const brand = process.env.NEXT_PUBLIC_NAME ?? "Purrsephone";
-  const title = `${brand} - Where Empathy Meets AI`;
-  const description = `${brand} is your personal 3D companion that can communicate via natural voice chat and vision, with an emotion engine that allows ${brand} to express feelings, complete tasks and engage on her own.`;
-  const imageUrl = "https://amica.arbius.ai/ogp.png";
+  const brand = process.env.NEXT_PUBLIC_NAME ?? "Assistant";
+  const title = `${brand} - Configurable AI Companion`;
+  const description = `${brand} is a configurable AI companion that can communicate via voice, vision, and text with deployment-provided settings.`;
+  const imageUrl = "/ogp.png";
 
   return (
     <Html lang="en">

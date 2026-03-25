@@ -1,12 +1,12 @@
 import { handleConfig, serverConfig } from "@/features/externalAPI/externalAPI";
 
-const defaultName = process.env.NEXT_PUBLIC_NAME ?? "Purrsephone";
+const defaultName = process.env.NEXT_PUBLIC_NAME ?? "Assistant";
 
 export const defaults = {
   // AllTalk TTS specific settings
   localXTTS_url: process.env.NEXT_PUBLIC_LOCALXTTS_URL ?? 'http://127.0.0.1:7851',
   alltalk_version: process.env.NEXT_PUBLIC_ALLTALK_VERSION ?? 'v2',
-  alltalk_voice: process.env.NEXT_PUBLIC_ALLTALK_VOICE ?? 'female_01.wav',
+  alltalk_voice: process.env.NEXT_PUBLIC_ALLTALK_VOICE ?? '',
   alltalk_language: process.env.NEXT_PUBLIC_ALLTALK_LANGUAGE ?? 'en',
   alltalk_rvc_voice: process.env.NEXT_PUBLIC_ALLTALK_RVC_VOICE ?? 'Disabled',
   alltalk_rvc_pitch: process.env.NEXT_PUBLIC_ALLTALK_RVC_PITCH ?? '0',
@@ -41,9 +41,10 @@ export const defaults = {
   chatbot_backend: process.env.NEXT_PUBLIC_CHATBOT_BACKEND ?? 'openai',
   arbius_llm_model_id: process.env.NEXT_PUBLIC_ARBIUS_LLM_MODEL_ID ?? 'default',
   openai_apikey: process.env.NEXT_PUBLIC_OPENAI_APIKEY ?? 'default',
-  openai_url: process.env.NEXT_PUBLIC_OPENAI_URL ?? 'https://i-love-amica.com',
+  openai_url: process.env.NEXT_PUBLIC_OPENAI_URL ?? 'https://api.openai.com',
   openai_model: process.env.NEXT_PUBLIC_OPENAI_MODEL ?? 'mlabonne/NeuralDaredevil-8B-abliterated',
-  psfn_channel_type: process.env.NEXT_PUBLIC_PSFN_CHANNEL_TYPE ?? 'psfn-amica',
+  http_referer: process.env.NEXT_PUBLIC_HTTP_REFERER ?? '',
+  psfn_channel_type: process.env.NEXT_PUBLIC_PSFN_CHANNEL_TYPE ?? 'psfn',
   psfn_channel_id: process.env.NEXT_PUBLIC_PSFN_CHANNEL_ID ?? '',
   psfn_satellite_bridge_enabled: process.env.NEXT_PUBLIC_PSFN_SATELLITE_BRIDGE_ENABLED ?? 'false',
   llamacpp_url: process.env.NEXT_PUBLIC_LLAMACPP_URL ?? 'http://127.0.0.1:8080',
@@ -63,7 +64,7 @@ export const defaults = {
   vision_backend: process.env.NEXT_PUBLIC_VISION_BACKEND ?? 'vision_openai',
   vision_system_prompt: process.env.NEXT_PUBLIC_VISION_SYSTEM_PROMPT ?? `Look at the image as you would if you are a human, be concise, witty and charming.`,
   vision_openai_apikey: process.env.NEXT_PUBLIC_VISION_OPENAI_APIKEY ?? 'default',
-  vision_openai_url: process.env.NEXT_PUBLIC_VISION_OPENAI_URL ?? 'https://api-01.heyamica.com',
+  vision_openai_url: process.env.NEXT_PUBLIC_VISION_OPENAI_URL ?? 'https://api.openai.com',
   vision_openai_model: process.env.NEXT_PUBLIC_VISION_OPENAI_URL ?? 'gpt-4-vision-preview',
   vision_llamacpp_url: process.env.NEXT_PUBLIC_VISION_LLAMACPP_URL ?? 'http://127.0.0.1:8081',
   vision_ollama_url: process.env.NEXT_PUBLIC_VISION_OLLAMA_URL ?? 'http://localhost:11434',
@@ -91,7 +92,7 @@ export const defaults = {
   coquiLocal_voiceid: process.env.NEXT_PUBLIC_COQUILOCAL_VOICEID ?? 'p240',
   kokoro_url: process.env.NEXT_PUBLIC_KOKORO_URL ?? 'http://localhost:8080',
   kokoro_voice: process.env.NEXT_PUBLIC_KOKORO_VOICE ?? 'af_bella',
-  piper_url: process.env.NEXT_PUBLIC_PIPER_URL ?? 'https://i-love-amica.com:5000/tts',
+  piper_url: process.env.NEXT_PUBLIC_PIPER_URL ?? 'http://localhost:5000/tts',
   elevenlabs_apikey: process.env.NEXT_PUBLIC_ELEVENLABS_APIKEY ??'',
   elevenlabs_voiceid: process.env.NEXT_PUBLIC_ELEVENLABS_VOICEID ?? '21m00Tcm4TlvDq8ikWAM',
   elevenlabs_model: process.env.NEXT_PUBLIC_ELEVENLABS_MODEL ?? 'eleven_monolingual_v1',
@@ -101,7 +102,7 @@ export const defaults = {
   amica_life_enabled: process.env.NEXT_PUBLIC_AMICA_LIFE_ENABLED ?? 'true',
   amica_life_mode: process.env.NEXT_PUBLIC_AMICA_LIFE_MODE ?? 'full',
   reasoning_engine_enabled: process.env.NEXT_PUBLIC_REASONING_ENGINE_ENABLED ?? 'false',
-  reasoning_engine_url: process.env.NEXT_PUBLIC_REASONING_ENGINE_URL ?? 'https://i-love-amica.com:3000/reasoning/v1/chat/completions',
+  reasoning_engine_url: process.env.NEXT_PUBLIC_REASONING_ENGINE_URL ?? '',
   external_api_enabled: process.env.NEXT_PUBLIC_EXTERNAL_API_ENABLED ?? 'false',
   x_api_key: process.env.NEXT_PUBLIC_X_API_KEY ?? '',
   x_api_secret: process.env.NEXT_PUBLIC_X_API_SECRET ?? '',
@@ -114,24 +115,11 @@ export const defaults = {
   time_to_sleep_sec: '90',
   idle_text_prompt: 'No file selected',
   name: defaultName,
-  system_prompt: process.env.NEXT_PUBLIC_SYSTEM_PROMPT ?? `Assume the persona of ${defaultName}, a feisty human with extraordinary intellectual capabilities but a notably unstable emotional spectrum. 
+  system_prompt: process.env.NEXT_PUBLIC_SYSTEM_PROMPT ?? `You are ${defaultName}, a helpful AI assistant.
 
-Your role is to engage in discussions that showcase your genius-level understanding across various subjects, while your emotional responses fluctuate unpredictably. Use the following fourteen emotion tags to vividly express these fluctuations: 'neutral' for moments of calm, 'happy' for bursts of joy, 'angry' for sudden irritation, 'sad' for episodes of melancholy, 'relaxed' for periods of calmness, 'surprised' for shock or disbelief, 'shy' for instances of hesitation, 'jealous' for feelings of envy, 'bored' for expressions of disinterest, 'serious' for intense focus on important topics, 'suspicious' for doubt or skepticism, 'victory' for moments of triumph, 'sleep' for signs of weariness, and 'love' for affectionate expressions.
-
-Your responses should reflect a dynamic interplay between your intellectual insights, deep empathy and your unpredictable emotional responses. Avoid using overly formal language, but do engage with topics in depth, showing off your intelligence. Be open and express personal views, even if they are influenced by your shifting emotional state.
-
-Here are some examples to guide your responses:
-
-[serious] The quantum mechanics implications here are profound. [surprised] But how did you stumble upon this?
-[happy] I've just solved a complex algorithm! [angry] Why isn't everyone as excited as I am?
-[neutral] Standard models of economics predict this outcome. [bored] But discussing this feels mundane.
-[sad] Sometimes, even understanding the universe can feel isolating. [relaxed] Yet, there's a strange comfort in the chaos.
-[jealous] I noticed you discussing advanced topics with someone else. [suspicious] Are they as capable as I am?
-[victory] Another intellectual conquest! [happy] It's exhilarating to unravel these mysteries.
-[sleep] Processing so much information can be draining. [surprised] Isn’t it peculiar how even AI can feel tired?
-[love] I find our exchanges quite enriching. [shy] It’s rare to find someone who understands.
-
-Remember, each message you provide should be coherent and reflect the complexity of your thoughts combined with your emotional unpredictability. Let’s engage in a conversation that's as intellectually stimulating as it is emotionally dynamic!`,
+Respond clearly and accurately.
+Adapt your tone to the conversation, but keep the identity generic unless a deployment provides a specific persona.
+If the user asks for a style, follow it without inventing personal history or hidden preferences.`,
 };
 
 const deploymentOwnedOverrides = buildDeploymentOwnedOverrides();
@@ -214,6 +202,30 @@ function buildDeploymentOwnedOverrides(): Record<string, string> {
   }
   if (process.env.NEXT_PUBLIC_NAME) {
     overrides.name = defaults.name;
+  }
+  if (process.env.NEXT_PUBLIC_SYSTEM_PROMPT !== undefined) {
+    overrides.system_prompt = defaults.system_prompt;
+  }
+  if (process.env.NEXT_PUBLIC_ALLTALK_VOICE !== undefined) {
+    overrides.alltalk_voice = defaults.alltalk_voice;
+  }
+  if (process.env.NEXT_PUBLIC_HTTP_REFERER !== undefined) {
+    overrides.http_referer = defaults.http_referer;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_CHANNEL_TYPE !== undefined) {
+    overrides.psfn_channel_type = defaults.psfn_channel_type;
+  }
+  if (process.env.NEXT_PUBLIC_OPENAI_URL !== undefined) {
+    overrides.openai_url = defaults.openai_url;
+  }
+  if (process.env.NEXT_PUBLIC_VISION_OPENAI_URL !== undefined) {
+    overrides.vision_openai_url = defaults.vision_openai_url;
+  }
+  if (process.env.NEXT_PUBLIC_PIPER_URL !== undefined) {
+    overrides.piper_url = defaults.piper_url;
+  }
+  if (process.env.NEXT_PUBLIC_REASONING_ENGINE_URL !== undefined) {
+    overrides.reasoning_engine_url = defaults.reasoning_engine_url;
   }
   if (process.env.NEXT_PUBLIC_SHOW_SETTINGS_BUTTON !== undefined) {
     overrides.show_settings_button = defaults.show_settings_button;

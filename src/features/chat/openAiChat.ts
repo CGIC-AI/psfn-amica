@@ -10,9 +10,12 @@ async function getResponseStream(
   const appName = config("name");
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    "HTTP-Referer": "https://amica.arbius.ai",
     "X-Title": appName,
   };
+  const httpReferer = config("http_referer").trim();
+  if (httpReferer.length > 0) {
+    headers["HTTP-Referer"] = httpReferer;
+  }
 
   if (apiKey && apiKey.trim().length > 0) {
     headers.Authorization = `Bearer ${apiKey.trim()}`;
@@ -20,13 +23,17 @@ async function getResponseStream(
 
   if (config("chatbot_backend") === "psfn") {
     const channelId = config("psfn_channel_id").trim();
+    const channelType = config("psfn_channel_type").trim();
     if (channelId.length === 0) {
       throw new Error("PSFN channel ID is required when chatbot_backend=psfn");
     }
-    if (!channelId.startsWith("psfn-amica:")) {
-      throw new Error(`PSFN channel ID must start with psfn-amica:, received "${channelId}"`);
+    if (channelType.length === 0) {
+      throw new Error("PSFN channel type is required when chatbot_backend=psfn");
     }
-    headers["X-PSFN-Channel-Type"] = config("psfn_channel_type").trim() || "psfn-amica";
+    if (!channelId.startsWith(`${channelType}:`)) {
+      throw new Error(`PSFN channel ID must start with ${channelType}:, received "${channelId}"`);
+    }
+    headers["X-PSFN-Channel-Type"] = channelType;
     headers["X-PSFN-Channel-ID"] = channelId;
   }
 

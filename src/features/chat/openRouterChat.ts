@@ -13,17 +13,21 @@ export async function getOpenRouterChatResponseStream(messages: Message[]): Prom
 
   const baseUrl = config('openrouter_url') ?? 'https://openrouter.ai/api/v1';
   const model = config('openrouter_model') ?? 'openai/gpt-3.5-turbo';
-  const appUrl = 'https://amica.arbius.ai';
   const appName = config('name');
+  const httpReferer = config("http_referer").trim();
+
+  const headers: Record<string, string> = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json',
+    'X-Title': `${appName} Chat`
+  };
+  if (httpReferer.length > 0) {
+    headers['HTTP-Referer'] = httpReferer;
+  }
 
   const response = await fetch(`${baseUrl}/chat/completions`, {
     method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': appUrl,
-      'X-Title': `${appName} Chat`
-    },
+    headers,
     body: JSON.stringify({
       model,
       messages: messages.map(({ role, content }) => ({ role, content })),
