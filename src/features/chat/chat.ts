@@ -58,19 +58,44 @@ type TTSJob = {
 };
 
 function joinMessageSegments(current: string, next: string): string {
-  if (!current) {
-    return next;
+  const currentTrimmed = current.trim();
+  const nextTrimmed = next.trim();
+  if (!currentTrimmed) {
+    return nextTrimmed;
   }
-  if (!next) {
-    return current;
+  if (!nextTrimmed) {
+    return currentTrimmed;
   }
-  if (/\s$/.test(current) || /^\s/.test(next)) {
-    return `${current}${next}`;
+  if (currentTrimmed === nextTrimmed) {
+    return currentTrimmed;
   }
-  if (/^[,.;:!?)}\]]/.test(next)) {
-    return `${current}${next}`;
+  if (nextTrimmed.includes(currentTrimmed)) {
+    return nextTrimmed;
   }
-  return `${current} ${next}`;
+  if (currentTrimmed.includes(nextTrimmed)) {
+    return currentTrimmed;
+  }
+  const overlap = findSegmentOverlap(currentTrimmed, nextTrimmed);
+  if (overlap > 0) {
+    return `${currentTrimmed}${nextTrimmed.slice(overlap)}`;
+  }
+  if (/\s$/.test(currentTrimmed) || /^\s/.test(nextTrimmed)) {
+    return `${currentTrimmed}${nextTrimmed}`;
+  }
+  if (/^[,.;:!?)}\]]/.test(nextTrimmed)) {
+    return `${currentTrimmed}${nextTrimmed}`;
+  }
+  return `${currentTrimmed} ${nextTrimmed}`;
+}
+
+function findSegmentOverlap(current: string, next: string): number {
+  const maxOverlap = Math.min(current.length, next.length);
+  for (let size = maxOverlap; size > 0; size -= 1) {
+    if (current.slice(-size) === next.slice(0, size)) {
+      return size;
+    }
+  }
+  return 0;
 }
 
 export class Chat {
@@ -111,6 +136,9 @@ export class Chat {
   public messageList: Message[];
 
   public currentStreamIdx: number;
+  private satelliteTurnStreams: Map<string, number>;
+  private satelliteCurrentTurnId: string | null;
+  private satelliteLastSegmentIndex: number;
 
   private eventSource: EventSource | null = null
   private satelliteEventSource: EventSource | null = null;
@@ -132,6 +160,9 @@ export class Chat {
 
     this.messageList = [];
     this.currentStreamIdx = 0;
+    this.satelliteTurnStreams = new Map();
+    this.satelliteCurrentTurnId = null;
+    this.satelliteLastSegmentIndex = -1;
 
     this.lastAwake = 0;
   }
@@ -552,12 +583,18 @@ export class Chat {
         }
         switch (payload.type) {
           case "user.final":
+            this.registerSatelliteTurn(payload.data.turnId);
             this.updateAwake();
             this.bubbleMessage("user", payload.data.text);
             break;
           case "assistant.segment":
           case "assistant.final":
-            void this.enqueueSatelliteAssistantReply(payload.data.text, payload.data.audioBase64);
+            void this.enqueueSatelliteAssistantReply(
+              payload.data.text,
+              payload.data.audioBase64,
+              payload.data.turnId,
+              payload.data.segmentIndex,
+            );
             break;
           case "interrupt":
             this.handleSatelliteInterrupt();
@@ -582,7 +619,37 @@ export class Chat {
     }
   }
 
-  private async enqueueSatelliteAssistantReply(text: string, audioBase64: string) {
+  private async enqueueSatelliteAssistantReply(
+    text: string,
+    audioBase64: string,
+    turnId?: string,
+    segmentIndex?: number,
+  ) {
+    const streamIdx = this.resolveSatelliteStreamIdx(turnId);
+    if (streamIdx === null) {
+      console.warn("Dropping satellite assistant segment for unknown turn", turnId);
+      return;
+    }
+    if (turnId) {
+      if (this.satelliteCurrentTurnId !== turnId) {
+        this.satelliteCurrentTurnId = turnId;
+        this.satelliteLastSegmentIndex = -1;
+      }
+      if (
+        typeof segmentIndex === "number" &&
+        segmentIndex <= this.satelliteLastSegmentIndex
+      ) {
+        console.warn("Dropping duplicate or stale satellite assistant segment", {
+          turnId,
+          segmentIndex,
+          lastSegmentIndex: this.satelliteLastSegmentIndex,
+        });
+        return;
+      }
+      if (typeof segmentIndex === "number") {
+        this.satelliteLastSegmentIndex = segmentIndex;
+      }
+    }
     const audioBuffer = decodeBase64Audio(audioBase64);
     const screenplay = textsToScreenplay([text])[0];
     if (!screenplay) {
@@ -591,14 +658,47 @@ export class Chat {
     this.speakJobs.enqueue({
       audioBuffer,
       screenplay,
-      streamIdx: this.currentStreamIdx,
+      streamIdx,
     });
   }
 
   private handleSatelliteInterrupt() {
+    this.currentStreamIdx += 1;
+    this.satelliteTurnStreams.clear();
+    this.satelliteCurrentTurnId = null;
+    this.satelliteLastSegmentIndex = -1;
     this.speakJobs.clear();
     this.viewer?.model?.stopSpeaking();
     this.setChatSpeaking?.(false);
+  }
+
+  private registerSatelliteTurn(turnId?: string) {
+    if (!turnId) {
+      this.satelliteCurrentTurnId = null;
+      this.satelliteLastSegmentIndex = -1;
+      return;
+    }
+    let streamIdx = this.satelliteTurnStreams.get(turnId);
+    if (streamIdx === undefined) {
+      this.currentStreamIdx += 1;
+      streamIdx = this.currentStreamIdx;
+      this.satelliteTurnStreams.set(turnId, streamIdx);
+      if (this.satelliteTurnStreams.size > 6) {
+        const staleTurnId = this.satelliteTurnStreams.keys().next().value;
+        if (staleTurnId && staleTurnId !== turnId) {
+          this.satelliteTurnStreams.delete(staleTurnId);
+        }
+      }
+    }
+    this.satelliteCurrentTurnId = turnId;
+    this.satelliteLastSegmentIndex = -1;
+  }
+
+  private resolveSatelliteStreamIdx(turnId?: string): number | null {
+    if (!turnId) {
+      return this.currentStreamIdx;
+    }
+    return this.satelliteTurnStreams.get(turnId) ?? null;
   }
 
   public async makeAndHandleStream(messages: Message[]) {

@@ -1,5 +1,6 @@
 export interface SatelliteBridgeSessionEventData {
   sessionId: string;
+  turnId?: string;
 }
 
 export interface SatelliteUserFinalEvent {
@@ -16,6 +17,7 @@ export interface SatelliteAssistantFinalEvent {
     audioBase64: string;
     mimeType: string;
     durationMs?: number;
+    segmentIndex?: number;
   };
 }
 
@@ -26,6 +28,7 @@ export interface SatelliteAssistantSegmentEvent {
     audioBase64: string;
     mimeType: string;
     durationMs?: number;
+    segmentIndex?: number;
   };
 }
 
