@@ -57,6 +57,22 @@ type TTSJob = {
   streamIdx: number;
 };
 
+function joinMessageSegments(current: string, next: string): string {
+  if (!current) {
+    return next;
+  }
+  if (!next) {
+    return current;
+  }
+  if (/\s$/.test(current) || /^\s/.test(next)) {
+    return `${current}${next}`;
+  }
+  if (/^[,.;:!?)}\]]/.test(next)) {
+    return `${current}${next}`;
+  }
+  return `${current} ${next}`;
+}
+
 export class Chat {
   public initialized: boolean;
 
@@ -329,7 +345,7 @@ export class Chat {
         this.setUserMessage!("");
 
       } else {
-        this.currentAssistantMessage += text;
+        this.currentAssistantMessage = joinMessageSegments(this.currentAssistantMessage, text);
         this.setUserMessage!("");
         this.setAssistantMessage!(this.currentAssistantMessage);
       }
