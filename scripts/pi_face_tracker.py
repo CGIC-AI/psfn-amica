@@ -25,11 +25,12 @@ SESSION_ID = (
     or "psfn-face-tracker"
 ).strip()
 CAMERA_INDEX = int(os.environ.get("AMICA_FACE_TRACKING_CAMERA_INDEX", "0"))
-CAPTURE_WIDTH = int(os.environ.get("AMICA_FACE_TRACKING_WIDTH", "320"))
-CAPTURE_HEIGHT = int(os.environ.get("AMICA_FACE_TRACKING_HEIGHT", "240"))
+CAPTURE_WIDTH = int(os.environ.get("AMICA_FACE_TRACKING_WIDTH", "640"))
+CAPTURE_HEIGHT = int(os.environ.get("AMICA_FACE_TRACKING_HEIGHT", "360"))
 DETECTION_WIDTH = int(os.environ.get("AMICA_FACE_TRACKING_DETECTION_WIDTH", "160"))
 DETECTION_HEIGHT = int(os.environ.get("AMICA_FACE_TRACKING_DETECTION_HEIGHT", "120"))
-TARGET_FPS = float(os.environ.get("AMICA_FACE_TRACKING_FPS", "8"))
+TARGET_FPS = float(os.environ.get("AMICA_FACE_TRACKING_FPS", "24"))
+CAPTURE_FOURCC = os.environ.get("AMICA_FACE_TRACKING_FOURCC", "MJPG").strip().upper()[:4]
 MIN_FACE_RATIO = float(os.environ.get("AMICA_FACE_TRACKING_MIN_FACE_RATIO", "0.2"))
 STALE_CLEAR_SEC = float(os.environ.get("AMICA_FACE_TRACKING_STALE_CLEAR_SEC", "0.6"))
 RESEND_SEC = float(os.environ.get("AMICA_FACE_TRACKING_RESEND_SEC", "0.35"))
@@ -515,6 +516,8 @@ def post_event(event_type: str, data: dict) -> None:
 
 def make_capture() -> cv2.VideoCapture:
     capture = cv2.VideoCapture(CAMERA_INDEX, cv2.CAP_V4L2)
+    if len(CAPTURE_FOURCC) == 4:
+        capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*CAPTURE_FOURCC))
     capture.set(cv2.CAP_PROP_FRAME_WIDTH, CAPTURE_WIDTH)
     capture.set(cv2.CAP_PROP_FRAME_HEIGHT, CAPTURE_HEIGHT)
     capture.set(cv2.CAP_PROP_FPS, TARGET_FPS)

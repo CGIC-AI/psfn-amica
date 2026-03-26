@@ -159,6 +159,10 @@ export class Chat {
     this.setChatProcessing = setChatProcessing;
     this.setChatSpeaking = setChatSpeaking;
 
+    if (this.initialized) {
+      return;
+    }
+
     // these will run forever
     this.processTtsJobs();
     this.processSpeakJobs();
