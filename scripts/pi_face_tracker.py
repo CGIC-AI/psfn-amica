@@ -11,6 +11,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 import cv2
+import numpy as np
 
 
 BRIDGE_URL = os.environ.get(
@@ -44,8 +45,26 @@ DEBUG_STATE_PATH = os.environ.get(
     ),
 ).strip()
 JPEG_QUALITY = int(os.environ.get("AMICA_FACE_TRACKING_DEBUG_JPEG_QUALITY", "75"))
-CASCADE_FILENAME = "haarcascade_frontalface_default.xml"
-DETECTOR_NAME = "OpenCV Haar Cascade"
+YOLO_MODEL_PATH = os.environ.get(
+    "AMICA_FACE_TRACKING_YOLO_MODEL_PATH",
+    os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "models", "yolo26n-pose-320.onnx")
+    ),
+).strip()
+YOLO_INPUT_SIZE = int(os.environ.get("AMICA_FACE_TRACKING_YOLO_INPUT_SIZE", "320"))
+YOLO_CONFIDENCE = float(os.environ.get("AMICA_FACE_TRACKING_YOLO_CONFIDENCE", "0.4"))
+YOLO_FACE_KEYPOINT_CONFIDENCE = float(
+    os.environ.get("AMICA_FACE_TRACKING_YOLO_FACE_KEYPOINT_CONFIDENCE", "0.35")
+)
+YOLO_NMS_THRESHOLD = float(os.environ.get("AMICA_FACE_TRACKING_YOLO_NMS_THRESHOLD", "0.45"))
+DETECTOR_NAME = "Ultralytics YOLO26n-pose (ONNX)"
+FACE_KEYPOINT_INDEXES = {
+    "nose": 0,
+    "left_eye": 1,
+    "right_eye": 2,
+    "left_ear": 3,
+    "right_ear": 4,
+}
 
 DEFAULT_TUNING = {
     "bodyYaw": 0.7,
@@ -266,7 +285,7 @@ DEBUG_PAGE_HTML = """<!doctype html>
         <h1>Amica Tracker Debug</h1>
         <p>
           Native tracker owns the camera. This page is the raw OpenCV feed and live tuning surface for torso, head,
-          eyes, and camera response. Detector: OpenCV Haar Cascade, not YOLO.
+          eyes, and camera response. Detector: native Ultralytics YOLO26 pose on the Pi.
         </p>
       </div>
       <div class="pill" id="detector-pill">Detector: loading</div>
@@ -456,7 +475,7 @@ FRAME_SEQUENCE = 0
 DEBUG_STATE = {
     "detector": DETECTOR_NAME,
     "sessionId": SESSION_ID,
-    "mirroredX": True,
+    "mirroredX": False,
     "target": None,
     "faceBox": None,
     "frameSize": {
@@ -503,20 +522,62 @@ def make_capture() -> cv2.VideoCapture:
     return capture
 
 
-def resolve_cascade_path() -> str | None:
-    cascade_dir = getattr(getattr(cv2, "data", None), "haarcascades", "")
-    candidates = [
-        os.path.abspath(
-            os.path.join(os.path.dirname(__file__), "..", "public", "opencv", CASCADE_FILENAME)
-        ),
-        os.path.join(cascade_dir, CASCADE_FILENAME) if cascade_dir else "",
-        os.path.join("/usr/share/opencv4/haarcascades", CASCADE_FILENAME),
-        os.path.join("/usr/share/opencv/haarcascades", CASCADE_FILENAME),
-    ]
-    for candidate in candidates:
-        if candidate and os.path.exists(candidate):
-            return candidate
+def resolve_yolo_model_path() -> str | None:
+    if YOLO_MODEL_PATH and os.path.exists(YOLO_MODEL_PATH):
+        return YOLO_MODEL_PATH
     return None
+
+
+def prepare_yolo_input(frame: np.ndarray) -> tuple[np.ndarray, float, int, int]:
+    frame_height, frame_width = frame.shape[:2]
+    scale = min(YOLO_INPUT_SIZE / frame_width, YOLO_INPUT_SIZE / frame_height)
+    resized_width = max(1, int(round(frame_width * scale)))
+    resized_height = max(1, int(round(frame_height * scale)))
+    pad_x = (YOLO_INPUT_SIZE - resized_width) // 2
+    pad_y = (YOLO_INPUT_SIZE - resized_height) // 2
+
+    resized = cv2.resize(frame, (resized_width, resized_height))
+    canvas = np.full((YOLO_INPUT_SIZE, YOLO_INPUT_SIZE, 3), 114, dtype=np.uint8)
+    canvas[pad_y : pad_y + resized_height, pad_x : pad_x + resized_width] = resized
+    return canvas, scale, pad_x, pad_y
+
+
+def map_to_frame(
+    raw_x: float,
+    raw_y: float,
+    scale: float,
+    pad_x: int,
+    pad_y: int,
+    frame_width: int,
+    frame_height: int,
+) -> tuple[float, float]:
+    frame_x = (raw_x - pad_x) / scale
+    frame_y = (raw_y - pad_y) / scale
+    return (
+        clamp(frame_x, 0.0, frame_width - 1.0),
+        clamp(frame_y, 0.0, frame_height - 1.0),
+    )
+
+
+class YoloPoseDetector:
+    def __init__(self, model_path: str):
+        self.net = cv2.dnn.readNetFromONNX(model_path)
+        self.net.setPreferableBackend(cv2.dnn.DNN_BACKEND_OPENCV)
+        self.net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
+
+    def detect(self, frame: np.ndarray) -> tuple[dict | None, dict | None]:
+        frame_height, frame_width = frame.shape[:2]
+        input_frame, scale, pad_x, pad_y = prepare_yolo_input(frame)
+        blob = cv2.dnn.blobFromImage(
+            input_frame,
+            scalefactor=1.0 / 255.0,
+            size=(YOLO_INPUT_SIZE, YOLO_INPUT_SIZE),
+            swapRB=True,
+            crop=False,
+        )
+        self.net.setInput(blob)
+        output = self.net.forward()
+        return pick_largest_face(output, frame_width, frame_height, scale, pad_x, pad_y)
 
 
 def ensure_state_dir() -> None:
@@ -565,24 +626,89 @@ def update_tuning(raw_tuning: dict | None) -> dict:
     return tuning
 
 
-def pick_largest_face(faces) -> tuple[dict | None, dict | None]:
-    largest = None
-    largest_area = 0
-    for (x, y, width, height) in faces:
-        area = width * height
-        if area > largest_area:
-            largest_area = area
-            largest = (x, y, width, height)
+def parse_face_points(
+    row: np.ndarray,
+    scale: float,
+    pad_x: int,
+    pad_y: int,
+    frame_width: int,
+    frame_height: int,
+) -> dict[str, dict]:
+    keypoints = row[5:].reshape(-1, 3)
+    face_points: dict[str, dict] = {}
+    for name, index in FACE_KEYPOINT_INDEXES.items():
+        if index >= keypoints.shape[0]:
+            continue
+        raw_x, raw_y, confidence = keypoints[index]
+        confidence = float(confidence)
+        if confidence < YOLO_FACE_KEYPOINT_CONFIDENCE:
+            continue
+        mapped_x, mapped_y = map_to_frame(
+            float(raw_x),
+            float(raw_y),
+            scale,
+            pad_x,
+            pad_y,
+            frame_width,
+            frame_height,
+        )
+        face_points[name] = {
+            "x": mapped_x,
+            "y": mapped_y,
+            "confidence": confidence,
+        }
+    return face_points
 
-    if not largest or largest_area <= 0:
-        return None, None
 
-    x, y, width, height = largest
-    center_x = x + (width / 2.0)
-    center_y = y + (height / 2.0)
-    normalized_x = -(((center_x / DETECTION_WIDTH) - 0.5) * 2.0)
-    normalized_y = (0.5 - (center_y / DETECTION_HEIGHT)) * 2.0
-    confidence = clamp(largest_area / (DETECTION_WIDTH * DETECTION_HEIGHT * 0.14), 0.0, 1.0)
+def build_face_target(
+    face_points: dict[str, dict],
+    bbox: tuple[float, float, float, float],
+    score: float,
+    frame_width: int,
+    frame_height: int,
+) -> tuple[dict | None, dict | None, float]:
+    primary_points = [
+        face_points[name]
+        for name in ("nose", "left_eye", "right_eye")
+        if name in face_points
+    ]
+    if not primary_points:
+        return None, None, 0.0
+
+    all_points = [
+        face_points[name]
+        for name in ("nose", "left_eye", "right_eye", "left_ear", "right_ear")
+        if name in face_points
+    ]
+    center_x = sum(point["x"] for point in primary_points) / len(primary_points)
+    center_y = sum(point["y"] for point in primary_points) / len(primary_points)
+
+    if "left_eye" in face_points and "right_eye" in face_points:
+        eye_midpoint_x = (face_points["left_eye"]["x"] + face_points["right_eye"]["x"]) / 2.0
+        eye_midpoint_y = (face_points["left_eye"]["y"] + face_points["right_eye"]["y"]) / 2.0
+        center_x = (center_x * 0.55) + (eye_midpoint_x * 0.45)
+        center_y = (center_y * 0.45) + (eye_midpoint_y * 0.55)
+
+    x1, y1, width, height = bbox
+    box_points = primary_points if len(primary_points) >= 2 else all_points
+    if len(box_points) >= 2:
+        xs = [point["x"] for point in box_points]
+        ys = [point["y"] for point in box_points]
+        spread_x = max(xs) - min(xs)
+        spread_y = max(ys) - min(ys)
+        face_size = max(spread_x * 2.25, spread_y * 3.0, min(width, height) * 0.32, 32.0)
+    else:
+        face_size = max(min(width, height) * 0.34, 32.0)
+    face_size = min(face_size, max(48.0, min(width * 0.78, height * 0.62)))
+
+    face_box_x = clamp(center_x - (face_size / 2.0), 0.0, max(0.0, frame_width - face_size))
+    face_box_y = clamp(center_y - (face_size * 0.46), 0.0, max(0.0, frame_height - face_size))
+
+    normalized_x = ((center_x / frame_width) - 0.5) * 2.0
+    normalized_y = (0.5 - (center_y / frame_height)) * 2.0
+    average_face_confidence = sum(point["confidence"] for point in primary_points) / len(primary_points)
+    confidence = clamp(score * (0.65 + (0.35 * average_face_confidence)), 0.0, 1.0)
+    ranking = score * width * height * (0.75 + (0.25 * len(primary_points)))
 
     return (
         {
@@ -591,12 +717,92 @@ def pick_largest_face(faces) -> tuple[dict | None, dict | None]:
             "confidence": round(confidence, 4),
         },
         {
-            "x": int(x),
-            "y": int(y),
-            "width": int(width),
-            "height": int(height),
+            "x": int(round(face_box_x)),
+            "y": int(round(face_box_y)),
+            "width": int(round(face_size)),
+            "height": int(round(face_size)),
         },
+        ranking,
     )
+
+
+def pick_largest_face(
+    output: np.ndarray,
+    frame_width: int,
+    frame_height: int,
+    scale: float,
+    pad_x: int,
+    pad_y: int,
+) -> tuple[dict | None, dict | None]:
+    if output is None:
+        return None, None
+
+    if output.ndim == 3:
+        predictions = output[0].T if output.shape[1] < output.shape[2] else output[0]
+    elif output.ndim == 2:
+        predictions = output.T if output.shape[0] < output.shape[1] else output
+    else:
+        return None, None
+
+    if predictions.shape[-1] < 15:
+        return None, None
+
+    boxes: list[list[int]] = []
+    scores: list[float] = []
+    candidates: list[tuple[tuple[float, float, float, float], np.ndarray, float]] = []
+
+    for row in predictions:
+        score = float(row[4])
+        if score < YOLO_CONFIDENCE:
+            continue
+
+        center_x, center_y, width, height = [float(value) for value in row[:4]]
+        if width <= 1.0 or height <= 1.0:
+            continue
+
+        raw_x1 = center_x - (width / 2.0)
+        raw_y1 = center_y - (height / 2.0)
+        raw_x2 = center_x + (width / 2.0)
+        raw_y2 = center_y + (height / 2.0)
+        mapped_x1, mapped_y1 = map_to_frame(raw_x1, raw_y1, scale, pad_x, pad_y, frame_width, frame_height)
+        mapped_x2, mapped_y2 = map_to_frame(raw_x2, raw_y2, scale, pad_x, pad_y, frame_width, frame_height)
+        mapped_width = max(1.0, mapped_x2 - mapped_x1)
+        mapped_height = max(1.0, mapped_y2 - mapped_y1)
+
+        boxes.append(
+            [
+                int(round(mapped_x1)),
+                int(round(mapped_y1)),
+                int(round(mapped_width)),
+                int(round(mapped_height)),
+            ]
+        )
+        scores.append(score)
+        candidates.append(((mapped_x1, mapped_y1, mapped_width, mapped_height), row, score))
+
+    if not boxes:
+        return None, None
+
+    indexes = cv2.dnn.NMSBoxes(boxes, scores, YOLO_CONFIDENCE, YOLO_NMS_THRESHOLD)
+    if indexes is None or len(indexes) == 0:
+        return None, None
+
+    best_target = None
+    best_face_box = None
+    best_ranking = 0.0
+
+    for index in np.array(indexes).reshape(-1):
+        bbox, row, score = candidates[int(index)]
+        face_points = parse_face_points(row, scale, pad_x, pad_y, frame_width, frame_height)
+        target, face_box, ranking = build_face_target(face_points, bbox, score, frame_width, frame_height)
+        if target is None or face_box is None:
+            continue
+        if ranking > best_ranking:
+            best_target = target
+            best_face_box = face_box
+            best_ranking = ranking
+
+    return best_target, best_face_box
 
 
 def changed_enough(previous: dict | None, current: dict) -> bool:
@@ -618,10 +824,10 @@ def scale_face_box(face_box: dict | None) -> dict | None:
         return None
 
     return {
-        "x": int(round(face_box["x"] * CAPTURE_WIDTH / DETECTION_WIDTH)),
-        "y": int(round(face_box["y"] * CAPTURE_HEIGHT / DETECTION_HEIGHT)),
-        "width": int(round(face_box["width"] * CAPTURE_WIDTH / DETECTION_WIDTH)),
-        "height": int(round(face_box["height"] * CAPTURE_HEIGHT / DETECTION_HEIGHT)),
+        "x": int(round(face_box["x"])),
+        "y": int(round(face_box["y"])),
+        "width": int(round(face_box["width"])),
+        "height": int(round(face_box["height"])),
     }
 
 
@@ -677,6 +883,10 @@ def update_debug_frame(frame, face_box: dict | None, target: dict | None) -> Non
     with FRAME_CONDITION:
         DEBUG_STATE["target"] = target
         DEBUG_STATE["faceBox"] = scaled_box
+        DEBUG_STATE["frameSize"] = {
+            "width": int(frame.shape[1]),
+            "height": int(frame.shape[0]),
+        }
         DEBUG_STATE["updatedAt"] = int(time.time() * 1000)
         if ok:
             LATEST_JPEG = encoded.tobytes()
@@ -922,20 +1132,20 @@ def main() -> int:
         return 1
 
     cv2.setNumThreads(1)
-    cascade_path = resolve_cascade_path()
-    if not cascade_path:
-        print("Failed to locate the Haar cascade for face tracking.", file=sys.stderr)
+    model_path = resolve_yolo_model_path()
+    if not model_path:
+        print("Failed to locate the YOLO pose model for face tracking.", file=sys.stderr)
         return 1
 
-    cascade = cv2.CascadeClassifier(cascade_path)
-    if cascade.empty():
-        print("Failed to load the Haar cascade for face tracking.", file=sys.stderr)
+    try:
+        detector = YoloPoseDetector(model_path)
+    except Exception as error:
+        print(f"Failed to load the YOLO pose model for face tracking: {error}", file=sys.stderr)
         return 1
 
     update_tuning(load_tuning())
     debug_server = start_debug_server()
     capture = make_capture()
-    min_face_size = max(24, round(DETECTION_WIDTH * MIN_FACE_RATIO))
 
     last_target = None
     last_sent_at = 0.0
@@ -956,17 +1166,8 @@ def main() -> int:
                 time.sleep(0.1)
                 continue
 
-            resized = cv2.resize(frame, (DETECTION_WIDTH, DETECTION_HEIGHT))
-            grayscale = cv2.cvtColor(resized, cv2.COLOR_BGR2GRAY)
-            cv2.equalizeHist(grayscale, grayscale)
-            faces = cascade.detectMultiScale(
-                grayscale,
-                scaleFactor=1.12,
-                minNeighbors=4,
-                minSize=(min_face_size, min_face_size),
-            )
             now = time.monotonic()
-            target, face_box = pick_largest_face(faces)
+            target, face_box = detector.detect(frame)
             update_debug_frame(frame, face_box, target)
 
             try:
