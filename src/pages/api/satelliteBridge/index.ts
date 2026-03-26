@@ -110,5 +110,25 @@ function validateSatelliteBridgeEvent(event: SatelliteBridgeEvent | null | undef
     return null;
   }
 
+  if (eventType === "face.clear") {
+    return null;
+  }
+
+  if (eventType === "face.target") {
+    const x = Number((event.data as { x?: unknown }).x);
+    const y = Number((event.data as { y?: unknown }).y);
+    const confidence = Number((event.data as { confidence?: unknown }).confidence);
+    if (!Number.isFinite(x) || x < -1 || x > 1) {
+      return "Face target x must be a finite number between -1 and 1.";
+    }
+    if (!Number.isFinite(y) || y < -1 || y > 1) {
+      return "Face target y must be a finite number between -1 and 1.";
+    }
+    if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
+      return "Face target confidence must be a finite number between 0 and 1.";
+    }
+    return null;
+  }
+
   return `Unsupported bridge event type: ${eventType}`;
 }

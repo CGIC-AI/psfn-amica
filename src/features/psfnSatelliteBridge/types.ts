@@ -34,8 +34,24 @@ export interface SatelliteInterruptEvent {
   data: SatelliteBridgeSessionEventData;
 }
 
+export interface SatelliteFaceTargetEvent {
+  type: "face.target";
+  data: SatelliteBridgeSessionEventData & {
+    x: number;
+    y: number;
+    confidence: number;
+  };
+}
+
+export interface SatelliteFaceClearEvent {
+  type: "face.clear";
+  data: SatelliteBridgeSessionEventData;
+}
+
 export type SatelliteBridgeEvent =
   | SatelliteUserFinalEvent
   | SatelliteAssistantSegmentEvent
   | SatelliteAssistantFinalEvent
-  | SatelliteInterruptEvent;
+  | SatelliteInterruptEvent
+  | SatelliteFaceTargetEvent
+  | SatelliteFaceClearEvent;

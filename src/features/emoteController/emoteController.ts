@@ -21,6 +21,10 @@ export class EmoteController {
     this._expressionController.lipSync(preset, value);
   }
 
+  public setLookAtOffset(x: number, y: number, z: number) {
+    this._expressionController.setLookAtOffset(x, y, z);
+  }
+
   public update(delta: number) {
     this._expressionController.update(delta);
   }

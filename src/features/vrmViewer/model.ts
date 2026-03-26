@@ -261,6 +261,10 @@ export class Model {
     });
   }
 
+  public setLookAtOffset(x: number, y: number, z: number) {
+    this.emoteController?.setLookAtOffset(x, y, z);
+  }
+
   public unLoadVrm() {
     if (this.vrm) {
       VRMUtils.deepDispose(this.vrm.scene);

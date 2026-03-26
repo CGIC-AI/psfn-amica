@@ -27,6 +27,11 @@ import { HTMLMesh } from "three/examples/jsm/interactive/HTMLMesh.js";
 
 import { loadVRMAnimation } from "@/lib/VRMAnimation/loadVRMAnimation";
 import { loadMixamoAnimation } from "@/lib/VRMAnimation/loadMixamoAnimation";
+import {
+  DEFAULT_FACE_TRACKING_DEBUG_TUNING,
+  type FaceTrackingDebugTuning,
+  type NormalizedFaceTarget,
+} from "@/features/faceTracking/types";
 import { config } from "@/utils/config";
 
 import { XRControllerModelFactory } from "./XRControllerModelFactory";
@@ -104,6 +109,10 @@ const amicaBones: VRMHumanBoneName[] = [
   "rightLowerArm",
   "rightHand",
 ];
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
 
 /**
  * three.jsを使った3Dビューワー
@@ -185,6 +194,21 @@ export class Viewer {
   private closestPart2: THREE.Object3D | null = null;
 
   private mouse = new THREE.Vector2();
+  private trackedFaceTarget: NormalizedFaceTarget | null = null;
+  private trackedFaceCameraOffset = new THREE.Vector2();
+  private trackedFaceLookAtOffset = new THREE.Vector2();
+  private trackedFaceBodyOffset = new THREE.Vector2();
+  private trackedFaceHeadOffset = new THREE.Vector2();
+  private trackedFaceHeadPosition = new THREE.Vector3();
+  private trackedFaceNeckEuler = new THREE.Euler();
+  private trackedFaceHeadEuler = new THREE.Euler();
+  private trackedFaceNeckBaseQuaternion = new THREE.Quaternion();
+  private trackedFaceHeadBaseQuaternion = new THREE.Quaternion();
+  private trackedFaceRotationQuaternion = new THREE.Quaternion();
+  private trackedFaceModelBaseYaw = 0;
+  private trackedFaceDebugTuning: FaceTrackingDebugTuning = {
+    ...DEFAULT_FACE_TRACKING_DEBUG_TUNING,
+  };
 
   // Temp Disable : WebXR
   // private particleRenderer = new BatchedParticleRenderer();
@@ -698,6 +722,9 @@ export class Viewer {
     // Temp Disable : WebXR
     // setLoadingProgress("VRM loaded");
     if (!this.model?.vrm) return;
+    this.trackedFaceModelBaseYaw = this.model.vrm.scene.rotation.y;
+    this.captureTrackedFaceBasePose();
+    this.resetTrackedFaceTracking();
 
     // Temp Disable : WebXR
     // build bvh
@@ -1007,6 +1034,174 @@ export class Viewer {
     // this.cameraControls?.update();
   }
 
+  public setTrackedFaceTarget(target: NormalizedFaceTarget | null) {
+    if (!target) {
+      return;
+    }
+
+    this.trackedFaceTarget = {
+      x: clamp(target.x, -1, 1),
+      y: clamp(target.y, -1, 1),
+      confidence: clamp(target.confidence, 0, 1),
+    };
+  }
+
+  public setTrackedFaceDebugTuning(tuning: Partial<FaceTrackingDebugTuning> | null | undefined) {
+    if (!tuning) {
+      return;
+    }
+
+    this.trackedFaceDebugTuning = {
+      ...this.trackedFaceDebugTuning,
+      ...tuning,
+    };
+  }
+
+  private captureTrackedFaceBasePose() {
+    if (!this.model?.vrm) {
+      return;
+    }
+
+    const neckNode = this.model.vrm.humanoid.getNormalizedBoneNode("neck");
+    const headNode = this.model.vrm.humanoid.getNormalizedBoneNode("head");
+
+    if (neckNode) {
+      this.trackedFaceNeckBaseQuaternion.copy(neckNode.quaternion);
+    }
+    if (headNode) {
+      this.trackedFaceHeadBaseQuaternion.copy(headNode.quaternion);
+    }
+  }
+
+  public resetTrackedFaceTracking() {
+    this.trackedFaceTarget = null;
+    this.trackedFaceCameraOffset.set(0, 0);
+    this.trackedFaceLookAtOffset.set(0, 0);
+    this.trackedFaceBodyOffset.set(0, 0);
+    this.trackedFaceHeadOffset.set(0, 0);
+
+    if (this.model?.vrm) {
+      this.model.vrm.scene.rotation.y = this.trackedFaceModelBaseYaw;
+      const neckNode = this.model.vrm.humanoid.getNormalizedBoneNode("neck");
+      const headNode = this.model.vrm.humanoid.getNormalizedBoneNode("head");
+      if (neckNode) {
+        neckNode.quaternion.copy(this.trackedFaceNeckBaseQuaternion);
+      }
+      if (headNode) {
+        headNode.quaternion.copy(this.trackedFaceHeadBaseQuaternion);
+      }
+    }
+
+    this.model?.setLookAtOffset(0, 0, this.trackedFaceDebugTuning.lookAtZ);
+    this.resetCamera();
+  }
+
+  private applyFaceTracking(delta: number) {
+    if (!this.camera || !this.model?.vrm) {
+      return;
+    }
+
+    const headNode = this.model.vrm.humanoid.getNormalizedBoneNode("head");
+    if (!headNode) {
+      return;
+    }
+
+    const hasTrackedTarget = this.trackedFaceTarget !== null;
+    const hasResidualOffset = Math.abs(this.trackedFaceCameraOffset.x) > 0.001
+      || Math.abs(this.trackedFaceCameraOffset.y) > 0.001
+      || Math.abs(this.trackedFaceLookAtOffset.x) > 0.001
+      || Math.abs(this.trackedFaceLookAtOffset.y) > 0.001
+      || Math.abs(this.trackedFaceBodyOffset.x) > 0.001
+      || Math.abs(this.trackedFaceBodyOffset.y) > 0.001
+      || Math.abs(this.trackedFaceHeadOffset.x) > 0.001
+      || Math.abs(this.trackedFaceHeadOffset.y) > 0.001;
+
+    if (!hasTrackedTarget && !hasResidualOffset) {
+      return;
+    }
+
+    const tuning = this.trackedFaceDebugTuning;
+    const confidence = this.trackedFaceTarget?.confidence ?? 1;
+    const desiredX = (this.trackedFaceTarget?.x ?? this.trackedFaceCameraOffset.x) * confidence;
+    const desiredY = (this.trackedFaceTarget?.y ?? this.trackedFaceCameraOffset.y) * confidence;
+    const cameraSmoothing = 1 - Math.exp(-delta * tuning.cameraSmoothing);
+    const lookAtSmoothing = 1 - Math.exp(-delta * tuning.lookAtSmoothing);
+    const bodySmoothing = 1 - Math.exp(-delta * tuning.bodySmoothing);
+    const headSmoothing = 1 - Math.exp(-delta * tuning.headSmoothing);
+
+    this.trackedFaceCameraOffset.x += (desiredX - this.trackedFaceCameraOffset.x) * cameraSmoothing;
+    this.trackedFaceCameraOffset.y += (desiredY - this.trackedFaceCameraOffset.y) * cameraSmoothing;
+    this.trackedFaceLookAtOffset.x += (desiredX - this.trackedFaceLookAtOffset.x) * lookAtSmoothing;
+    this.trackedFaceLookAtOffset.y += (desiredY - this.trackedFaceLookAtOffset.y) * lookAtSmoothing;
+    this.trackedFaceBodyOffset.x += (desiredX - this.trackedFaceBodyOffset.x) * bodySmoothing;
+    this.trackedFaceBodyOffset.y += (desiredY - this.trackedFaceBodyOffset.y) * bodySmoothing;
+    this.trackedFaceHeadOffset.x += (desiredX - this.trackedFaceHeadOffset.x) * headSmoothing;
+    this.trackedFaceHeadOffset.y += (desiredY - this.trackedFaceHeadOffset.y) * headSmoothing;
+
+    const parallaxStrength = clamp(
+      Number.parseFloat(config("face_tracking_parallax_strength")) || 1,
+      0,
+      2,
+    );
+    const eyeStrength = clamp(
+      Number.parseFloat(config("face_tracking_eye_strength")) || 1,
+      0,
+      2,
+    );
+    const cameraX = -this.trackedFaceCameraOffset.x;
+    const bodyX = -this.trackedFaceBodyOffset.x;
+    const headX = -this.trackedFaceHeadOffset.x;
+    const headY = this.trackedFaceHeadOffset.y;
+    this.model.vrm.scene.rotation.y =
+      this.trackedFaceModelBaseYaw + bodyX * tuning.bodyYaw * parallaxStrength;
+
+    const neckNode = this.model.vrm.humanoid.getNormalizedBoneNode("neck");
+    const headYaw = clamp(headX * tuning.headYaw * parallaxStrength, -0.55, 0.55);
+    const headPitch = clamp(headY * tuning.headPitch * parallaxStrength, -0.35, 0.35);
+
+    if (neckNode) {
+      neckNode.quaternion.copy(this.trackedFaceNeckBaseQuaternion);
+      this.trackedFaceNeckEuler.set(
+        clamp(headPitch * 0.35, -0.16, 0.16),
+        clamp(headYaw * 0.4, -0.22, 0.22),
+        0,
+      );
+      neckNode.quaternion.multiply(
+        this.trackedFaceRotationQuaternion.setFromEuler(this.trackedFaceNeckEuler),
+      );
+    }
+
+    headNode.quaternion.copy(this.trackedFaceHeadBaseQuaternion);
+    this.trackedFaceHeadEuler.set(
+      clamp(headPitch * 0.65, -0.22, 0.22),
+      clamp(headYaw * 0.75, -0.35, 0.35),
+      0,
+    );
+    headNode.quaternion.multiply(
+      this.trackedFaceRotationQuaternion.setFromEuler(this.trackedFaceHeadEuler),
+    );
+
+    const headPosition = headNode.getWorldPosition(this.trackedFaceHeadPosition);
+
+    this.camera.position.set(
+      headPosition.x + cameraX * tuning.cameraPositionX * parallaxStrength,
+      headPosition.y + this.trackedFaceCameraOffset.y * tuning.cameraPositionY * parallaxStrength,
+      this.camera.position.z,
+    );
+    this.cameraControls?.target.set(
+      headPosition.x + bodyX * tuning.cameraTargetX * parallaxStrength,
+      headPosition.y + this.trackedFaceCameraOffset.y * tuning.cameraTargetY * parallaxStrength,
+      headPosition.z,
+    );
+    this.cameraControls?.update();
+
+    this.model.setLookAtOffset(
+      this.trackedFaceLookAtOffset.x * tuning.eyeX * eyeStrength,
+      this.trackedFaceLookAtOffset.y * tuning.eyeY * eyeStrength,
+      tuning.lookAtZ,
+    );
+  }
+
   public hslToRgb(h: number, s: number, l: number) {
     let r, g, b;
 
@@ -1272,6 +1467,7 @@ export class Viewer {
     ptime = performance.now();
     try {
       this.model?.update(delta);
+      this.applyFaceTracking(delta);
     } catch (e) {
       console.error("model update error", e);
     }

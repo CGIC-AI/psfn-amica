@@ -19,6 +19,9 @@ export const defaults = {
   render_pixel_ratio_cap: process.env.NEXT_PUBLIC_RENDER_PIXEL_RATIO_CAP ?? '2',
   render_xr_enabled: process.env.NEXT_PUBLIC_RENDER_XR_ENABLED ?? 'true',
   render_xr_framebuffer_scale: process.env.NEXT_PUBLIC_RENDER_XR_FRAMEBUFFER_SCALE ?? '2',
+  face_tracking_enabled: process.env.NEXT_PUBLIC_FACE_TRACKING_ENABLED ?? 'false',
+  face_tracking_parallax_strength: process.env.NEXT_PUBLIC_FACE_TRACKING_PARALLAX_STRENGTH ?? '1',
+  face_tracking_eye_strength: process.env.NEXT_PUBLIC_FACE_TRACKING_EYE_STRENGTH ?? '1',
   use_webgpu: 'false',
   mtoon_debug_mode: 'none',
   mtoon_material_type: 'mtoon',
@@ -220,6 +223,15 @@ function buildDeploymentOwnedOverrides(): Record<string, string> {
   }
   if (process.env.NEXT_PUBLIC_PSFN_SATELLITE_BRIDGE_ENABLED !== undefined) {
     overrides.psfn_satellite_bridge_enabled = defaults.psfn_satellite_bridge_enabled;
+  }
+  if (process.env.NEXT_PUBLIC_FACE_TRACKING_ENABLED !== undefined) {
+    overrides.face_tracking_enabled = defaults.face_tracking_enabled;
+  }
+  if (process.env.NEXT_PUBLIC_FACE_TRACKING_PARALLAX_STRENGTH !== undefined) {
+    overrides.face_tracking_parallax_strength = defaults.face_tracking_parallax_strength;
+  }
+  if (process.env.NEXT_PUBLIC_FACE_TRACKING_EYE_STRENGTH !== undefined) {
+    overrides.face_tracking_eye_strength = defaults.face_tracking_eye_strength;
   }
   if (process.env.NEXT_PUBLIC_CHATBOT_BACKEND !== undefined) {
     overrides.chatbot_backend = defaults.chatbot_backend;

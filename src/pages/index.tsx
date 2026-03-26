@@ -47,6 +47,9 @@ import { LoadingProgress } from "@/components/loadingProgress";
 import { DebugPane } from "@/components/debugPane";
 import { Settings } from "@/components/settings";
 import { EmbeddedWebcam } from "@/components/embeddedWebcam";
+import { FaceTrackingDebugSync } from "@/components/faceTrackingDebugSync";
+import { FaceTrackingBridge } from "@/components/faceTrackingBridge";
+import { FaceTrackingCamera } from "@/components/faceTrackingCamera";
 import { Moshi } from "@/features/moshi/components/Moshi";
 
 import { ViewerContext } from "@/features/vrmViewer/viewerContext";
@@ -139,6 +142,7 @@ export default function Home() {
   // null indicates havent loaded config yet
   const [muted, setMuted] = useState<boolean|null>(null);
   const [webcamEnabled, setWebcamEnabled] = useState(false);
+  const [faceTrackingEnabled, setFaceTrackingEnabled] = useState(false);
   const [showLanguageSelector, setShowLanguageSelector] = useState(false);
 
   const [showStreamWindow, setShowStreamWindow] = useState(false);
@@ -169,6 +173,7 @@ export default function Home() {
       setMuted(config('tts_muted') === 'true');
     }
 
+    setFaceTrackingEnabled(config("face_tracking_enabled") === "true");
     setShowArbiusIntroduction(config("show_arbius_introduction") === 'true');
 
     if (config("bg_color") !== '') {
@@ -229,6 +234,12 @@ export default function Home() {
   function toggleTTSMute() {
     updateConfig('tts_muted', config('tts_muted') === 'true' ? 'false' : 'true')
     setMuted(config('tts_muted') === 'true')
+  }
+
+  function toggleFaceTracking() {
+    const nextEnabled = !faceTrackingEnabled;
+    setFaceTrackingEnabled(nextEnabled);
+    void updateConfig("face_tracking_enabled", nextEnabled ? "true" : "false");
   }
 
   async function toggleMicMute() {
@@ -418,6 +429,12 @@ export default function Home() {
       <LoadingProgress />
 
       { webcamEnabled && <EmbeddedWebcam setWebcamEnabled={setWebcamEnabled} /> }
+      {faceTrackingEnabled && (
+        <>
+          <FaceTrackingDebugSync />
+          {satelliteBridgeEnabled ? <FaceTrackingBridge /> : <FaceTrackingCamera />}
+        </>
+      )}
       { showDebug && <DebugPane onClickClose={() => setShowDebug(false) }/> }
       { config("chatbot_backend") === "moshi" && <Moshi setAssistantText={setAssistantMessage}/>  }
 
@@ -523,6 +540,13 @@ export default function Home() {
                   label="enable webcam"
                 />
               )}
+
+              <MenuButton
+                large={isVRHeadset}
+                icon={SignalIcon}
+                onClick={toggleFaceTracking}
+                label={faceTrackingEnabled ? "disable face tracking" : "enable face tracking"}
+              />
 
               <MenuButton
                 large={isVRHeadset}

@@ -88,6 +88,10 @@ export class ExpressionController {
     };
   }
 
+  public setLookAtOffset(x: number, y: number, z: number) {
+    this._autoLookAt.setOffset(x, y, z);
+  }
+
   public update(delta: number) {
     if (this._autoBlink) {
       this._autoBlink.update(delta);
