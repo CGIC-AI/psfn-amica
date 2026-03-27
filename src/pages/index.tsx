@@ -138,6 +138,7 @@ export default function Home() {
   );
   const [micMuted, setMicMuted] = useState(false);
   const [micMuteBusy, setMicMuteBusy] = useState(false);
+  const [micControlAvailable, setMicControlAvailable] = useState(false);
 
   // null indicates havent loaded config yet
   const [muted, setMuted] = useState<boolean|null>(null);
@@ -212,9 +213,13 @@ export default function Home() {
         }
         if (!cancelled) {
           setMicMuted(Boolean(payload?.muted));
+          setMicControlAvailable(payload?.available !== false);
         }
       } catch (error) {
         console.error("Failed to load mic mute state:", error);
+        if (!cancelled) {
+          setMicControlAvailable(false);
+        }
       }
     })();
 
@@ -243,6 +248,9 @@ export default function Home() {
   }
 
   async function toggleMicMute() {
+    if (!micControlAvailable) {
+      return;
+    }
     const nextMuted = !micMuted;
     setMicMuteBusy(true);
     try {
@@ -515,7 +523,7 @@ export default function Home() {
                 />
               )}
 
-              {satelliteBridgeEnabled && (
+              {satelliteBridgeEnabled && micControlAvailable && (
                 <MenuButton
                   large={isVRHeadset}
                   icon={micMuted ? NoSymbolIcon : MicrophoneIcon}
