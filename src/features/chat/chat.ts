@@ -332,22 +332,12 @@ export class Chat {
     // TODO: currentUser & Assistant message should be contain the message with emotion in it
 
     if (role === "user") {
-      // add space if there is already a partial message
-      if (this.currentUserMessage !== "") {
-        this.currentUserMessage += " ";
-      }
-      this.currentUserMessage += text;
+      this.flushCurrentUserMessage();
+      this.currentUserMessage = text.trim();
       this.setUserMessage!(this.currentUserMessage);
       this.setAssistantMessage!("");
 
-      if (this.currentAssistantMessage !== "") {
-        this.messageList!.push({
-          role: "assistant",
-          content: this.currentAssistantMessage,
-        });
-
-        this.currentAssistantMessage = "";
-      }
+      this.flushCurrentAssistantMessage();
 
       this.setChatLog!([
         ...this.messageList!,
@@ -385,14 +375,7 @@ export class Chat {
         this.setAssistantMessage!(this.currentAssistantMessage);
       }
 
-      if (this.currentUserMessage !== "") {
-        this.messageList!.push({
-          role: "user",
-          content: this.currentUserMessage,
-        });
-
-        this.currentUserMessage = "";
-      }
+      this.flushCurrentUserMessage();
 
       this.setChatLog!([
         ...this.messageList!,
@@ -401,6 +384,34 @@ export class Chat {
     }
 
     this.setShownMessage!(role);
+  }
+
+  private flushCurrentUserMessage() {
+    const pendingUserMessage = this.currentUserMessage.trim();
+    if (!pendingUserMessage) {
+      this.currentUserMessage = "";
+      return;
+    }
+
+    this.messageList!.push({
+      role: "user",
+      content: pendingUserMessage,
+    });
+    this.currentUserMessage = "";
+  }
+
+  private flushCurrentAssistantMessage() {
+    const pendingAssistantMessage = this.currentAssistantMessage.trim();
+    if (!pendingAssistantMessage) {
+      this.currentAssistantMessage = "";
+      return;
+    }
+
+    this.messageList!.push({
+      role: "assistant",
+      content: pendingAssistantMessage,
+    });
+    this.currentAssistantMessage = "";
   }
 
   public async interrupt() {

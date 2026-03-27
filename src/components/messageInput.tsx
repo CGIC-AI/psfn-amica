@@ -30,8 +30,10 @@ export default function MessageInput({
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => void;
 }) {
+  const duplicateAutosendWindowMs = 2500;
   const transcriber = useTranscriber();
   const inputRef = useRef<HTMLInputElement>(null);
+  const lastAutosentTranscriptRef = useRef<{ normalizedText: string; at: number } | null>(null);
   const [whisperOpenAIOutput, setWhisperOpenAIOutput] = useState<any | null>(null);
   const [whisperCppOutput, setWhisperCppOutput] = useState<any | null>(null);
   const { chat: bot } = useContext(ChatContext);
@@ -120,6 +122,27 @@ export default function MessageInput({
     console.error('vad error', vad.errored);
   }
 
+  function shouldDropDuplicateAutosend(text: string): boolean {
+    const normalizedText = cleanFromPunctuation(text).trim().toLowerCase();
+    if (normalizedText === "") {
+      return false;
+    }
+
+    const now = Date.now();
+    const lastAutosentTranscript = lastAutosentTranscriptRef.current;
+    if (
+      lastAutosentTranscript &&
+      lastAutosentTranscript.normalizedText === normalizedText &&
+      now - lastAutosentTranscript.at <= duplicateAutosendWindowMs
+    ) {
+      console.warn("dropping duplicate autosent transcript", normalizedText);
+      return true;
+    }
+
+    lastAutosentTranscriptRef.current = { normalizedText, at: now };
+    return false;
+  }
+
   function handleTranscriptionResult(preprocessed: string) {
     const cleanText = cleanTranscript(preprocessed);
     const wakeWordEnabled = config("wake_word_enabled") === 'true';
@@ -156,6 +179,9 @@ export default function MessageInput({
 
     if (config("autosend_from_mic") === 'true') {
       if (!wakeWordEnabled || bot.isAwake()) {
+        if (shouldDropDuplicateAutosend(text)) {
+          return;
+        }
         bot.receiveMessageFromUser(text,false);
       } 
     } else {
