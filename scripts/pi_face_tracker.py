@@ -265,6 +265,10 @@ DEBUG_PAGE_HTML = """<!doctype html>
       background: rgba(110, 208, 255, 0.08);
       border-color: rgba(110, 208, 255, 0.2);
     }
+    button.danger {
+      background: linear-gradient(180deg, rgba(255, 96, 96, 0.18), rgba(255, 96, 96, 0.08));
+      border-color: rgba(255, 96, 96, 0.28);
+    }
     .footer {
       color: var(--muted);
       font-size: 12px;
@@ -313,8 +317,13 @@ DEBUG_PAGE_HTML = """<!doctype html>
             <div class="label">Mic</div>
             <div class="value" id="mic-value">waiting</div>
           </div>
+          <div class="stat">
+            <div class="label">Tracking</div>
+            <div class="value" id="tracking-value">waiting</div>
+          </div>
         </div>
         <div class="toolbar">
+          <button class="danger" id="tracking-toggle" type="button">Stop Tracking</button>
           <button id="mic-toggle" type="button">Toggle Mic</button>
           <button class="secondary" id="refresh-button" type="button">Refresh State</button>
         </div>
@@ -355,11 +364,14 @@ DEBUG_PAGE_HTML = """<!doctype html>
     const faceBoxValue = document.getElementById("face-box-value");
     const sessionValue = document.getElementById("session-value");
     const micValue = document.getElementById("mic-value");
+    const trackingValue = document.getElementById("tracking-value");
+    const trackingToggle = document.getElementById("tracking-toggle");
     const micToggle = document.getElementById("mic-toggle");
     const refreshButton = document.getElementById("refresh-button");
 
     let tuning = null;
     let lastMic = null;
+    let trackingEnabled = true;
     let saveTimer = 0;
 
     function fmt(value, digits = 3) {
@@ -423,14 +435,23 @@ DEBUG_PAGE_HTML = """<!doctype html>
       const response = await fetch("/api/state", { cache: "no-store" });
       const state = await response.json();
 
-      detectorPill.textContent = "Detector: " + state.detector + (state.mirroredX ? " / X flipped for target" : "");
+      trackingEnabled = state.trackingEnabled !== false;
+      detectorPill.textContent =
+        "Detector: " +
+        state.detector +
+        (state.mirroredX ? " / X flipped for target" : "") +
+        (trackingEnabled ? "" : " / paused");
       sessionValue.textContent = state.sessionId;
-      if (state.target) {
+      if (!trackingEnabled) {
+        targetValue.textContent = "stopped";
+      } else if (state.target) {
         targetValue.textContent = "x " + fmt(state.target.x) + " / y " + fmt(state.target.y) + " / c " + fmt(state.target.confidence);
       } else {
         targetValue.textContent = "no face";
       }
-      if (state.faceBox) {
+      if (!trackingEnabled) {
+        faceBoxValue.textContent = "stopped";
+      } else if (state.faceBox) {
         faceBoxValue.textContent = state.faceBox.x + ", " + state.faceBox.y + " / " + state.faceBox.width + "x" + state.faceBox.height;
       } else {
         faceBoxValue.textContent = "no box";
@@ -439,6 +460,9 @@ DEBUG_PAGE_HTML = """<!doctype html>
       lastMic = state.mic || null;
       micValue.textContent = lastMic ? (lastMic.muted ? "muted" : "live") : "unavailable";
       micToggle.disabled = !lastMic;
+      trackingValue.textContent = trackingEnabled ? "running" : "stopped";
+      trackingToggle.textContent = trackingEnabled ? "Stop Tracking" : "Start Tracking";
+      trackingToggle.classList.toggle("danger", trackingEnabled);
 
       renderControls(state.tuning);
     }
@@ -458,6 +482,23 @@ DEBUG_PAGE_HTML = """<!doctype html>
       micValue.textContent = lastMic.muted ? "muted" : "live";
     }
 
+    async function toggleTracking() {
+      const response = await fetch("/api/tracking", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ enabled: !trackingEnabled }),
+      });
+      const state = await response.json();
+      trackingEnabled = state.enabled !== false;
+      trackingValue.textContent = trackingEnabled ? "running" : "stopped";
+      trackingToggle.textContent = trackingEnabled ? "Stop Tracking" : "Start Tracking";
+      trackingToggle.classList.toggle("danger", trackingEnabled);
+      await refreshState();
+    }
+
+    trackingToggle.addEventListener("click", () => { void toggleTracking(); });
     micToggle.addEventListener("click", () => { void toggleMic(); });
     refreshButton.addEventListener("click", () => { void refreshState(); });
 
@@ -477,6 +518,7 @@ DEBUG_STATE = {
     "detector": DETECTOR_NAME,
     "sessionId": SESSION_ID,
     "mirroredX": False,
+    "trackingEnabled": True,
     "target": None,
     "faceBox": None,
     "frameSize": {
@@ -834,7 +876,12 @@ def scale_face_box(face_box: dict | None) -> dict | None:
     }
 
 
-def update_debug_frame(frame, face_box: dict | None, target: dict | None) -> None:
+def update_debug_frame(
+    frame,
+    face_box: dict | None,
+    target: dict | None,
+    tracking_enabled: bool = True,
+) -> None:
     global LATEST_JPEG, FRAME_SEQUENCE
 
     display_frame = frame.copy()
@@ -863,7 +910,7 @@ def update_debug_frame(frame, face_box: dict | None, target: dict | None) -> Non
         )
         cv2.rectangle(display_frame, top_left, bottom_right, (110, 208, 255), 2)
 
-    label = "no face"
+    label = "tracking stopped" if not tracking_enabled else "no face"
     if target:
         label = f"x {target['x']:+.3f} y {target['y']:+.3f} c {target['confidence']:.3f}"
     cv2.putText(
@@ -949,6 +996,7 @@ def snapshot_state() -> dict:
             "detector": DEBUG_STATE["detector"],
             "sessionId": DEBUG_STATE["sessionId"],
             "mirroredX": DEBUG_STATE["mirroredX"],
+            "trackingEnabled": DEBUG_STATE["trackingEnabled"],
             "target": DEBUG_STATE["target"],
             "faceBox": DEBUG_STATE["faceBox"],
             "frameSize": dict(DEBUG_STATE["frameSize"]),
@@ -958,6 +1006,24 @@ def snapshot_state() -> dict:
 
     state["mic"] = read_mic_state()
     return state
+
+
+def is_tracking_enabled() -> bool:
+    with STATE_LOCK:
+        return bool(DEBUG_STATE.get("trackingEnabled", True))
+
+
+def set_tracking_enabled(enabled: bool) -> bool:
+    global FRAME_SEQUENCE
+    with FRAME_CONDITION:
+        DEBUG_STATE["trackingEnabled"] = bool(enabled)
+        if not enabled:
+            DEBUG_STATE["target"] = None
+            DEBUG_STATE["faceBox"] = None
+            DEBUG_STATE["updatedAt"] = int(time.time() * 1000)
+            FRAME_SEQUENCE += 1
+            FRAME_CONDITION.notify_all()
+        return bool(DEBUG_STATE["trackingEnabled"])
 
 
 class TrackerDebugHandler(BaseHTTPRequestHandler):
@@ -999,6 +1065,17 @@ class TrackerDebugHandler(BaseHTTPRequestHandler):
 
         if path == "/api/tuning":
             payload = json.dumps({"tuning": snapshot_state()["tuning"]}).encode("utf-8")
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
+        if path == "/api/tracking":
+            payload = json.dumps(
+                {"enabled": snapshot_state()["trackingEnabled"]}
+            ).encode("utf-8")
             self.send_response(HTTPStatus.OK)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(payload)))
@@ -1075,6 +1152,27 @@ class TrackerDebugHandler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+            return
+
+        if path == "/api/tracking":
+            try:
+                payload = read_json_body(self)
+                enabled = payload.get("enabled")
+                if not isinstance(enabled, bool):
+                    raise ValueError("Boolean enabled value is required.")
+                body = json.dumps({"enabled": set_tracking_enabled(enabled)}).encode("utf-8")
+                self.send_response(HTTPStatus.OK)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception as error:
+                message = json.dumps({"error": str(error)}).encode("utf-8")
+                self.send_response(HTTPStatus.BAD_REQUEST)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(message)))
+                self.end_headers()
+                self.wfile.write(message)
             return
 
         self.send_error(HTTPStatus.NOT_FOUND, "Not found.")
@@ -1170,8 +1268,46 @@ def main() -> int:
                 continue
 
             now = time.monotonic()
+            tracking_enabled = is_tracking_enabled()
+            if not tracking_enabled:
+                update_debug_frame(frame, None, None, tracking_enabled=False)
+                if face_active or last_target is not None:
+                    try:
+                        post_event("face.clear", {"sessionId": SESSION_ID})
+                    except urllib.error.URLError:
+                        pass
+                    except Exception as error:
+                        print(f"Face tracker bridge error: {error}", file=sys.stderr)
+                    last_target = None
+                    last_sent_at = now
+                    face_active = False
+
+                elapsed = time.monotonic() - started_at
+                sleep_for = max(0.0, (1.0 / TARGET_FPS) - elapsed)
+                if sleep_for > 0:
+                    time.sleep(sleep_for)
+                continue
+
             target, face_box = detector.detect(frame)
-            update_debug_frame(frame, face_box, target)
+            if not is_tracking_enabled():
+                update_debug_frame(frame, None, None, tracking_enabled=False)
+                if face_active or last_target is not None:
+                    try:
+                        post_event("face.clear", {"sessionId": SESSION_ID})
+                    except urllib.error.URLError:
+                        pass
+                    except Exception as error:
+                        print(f"Face tracker bridge error: {error}", file=sys.stderr)
+                    last_target = None
+                    last_sent_at = now
+                    face_active = False
+
+                elapsed = time.monotonic() - started_at
+                sleep_for = max(0.0, (1.0 / TARGET_FPS) - elapsed)
+                if sleep_for > 0:
+                    time.sleep(sleep_for)
+                continue
+            update_debug_frame(frame, face_box, target, tracking_enabled=True)
 
             try:
                 if target is not None:
