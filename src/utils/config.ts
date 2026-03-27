@@ -239,11 +239,35 @@ function buildDeploymentOwnedOverrides(): Record<string, string> {
   if (process.env.NEXT_PUBLIC_TTS_BACKEND !== undefined) {
     overrides.tts_backend = defaults.tts_backend;
   }
+  if (process.env.NEXT_PUBLIC_STT_BACKEND !== undefined) {
+    overrides.stt_backend = defaults.stt_backend;
+  }
   if (process.env.NEXT_PUBLIC_ELEVENLABS_VOICEID !== undefined) {
     overrides.elevenlabs_voiceid = defaults.elevenlabs_voiceid;
   }
   if (process.env.NEXT_PUBLIC_OPENAI_URL !== undefined) {
     overrides.openai_url = defaults.openai_url;
+  }
+  if (process.env.NEXT_PUBLIC_OPENAI_WHISPER_URL !== undefined) {
+    overrides.openai_whisper_url = defaults.openai_whisper_url;
+  }
+  if (process.env.NEXT_PUBLIC_OPENAI_WHISPER_APIKEY !== undefined) {
+    overrides.openai_whisper_apikey = defaults.openai_whisper_apikey;
+  }
+  if (process.env.NEXT_PUBLIC_OPENAI_WHISPER_MODEL !== undefined) {
+    overrides.openai_whisper_model = defaults.openai_whisper_model;
+  }
+  if (process.env.NEXT_PUBLIC_OPENAI_TTS_URL !== undefined) {
+    overrides.openai_tts_url = defaults.openai_tts_url;
+  }
+  if (process.env.NEXT_PUBLIC_OPENAI_TTS_APIKEY !== undefined) {
+    overrides.openai_tts_apikey = defaults.openai_tts_apikey;
+  }
+  if (process.env.NEXT_PUBLIC_OPENAI_TTS_MODEL !== undefined) {
+    overrides.openai_tts_model = defaults.openai_tts_model;
+  }
+  if (process.env.NEXT_PUBLIC_OPENAI_TTS_VOICE !== undefined) {
+    overrides.openai_tts_voice = defaults.openai_tts_voice;
   }
   if (process.env.NEXT_PUBLIC_VISION_OPENAI_URL !== undefined) {
     overrides.vision_openai_url = defaults.vision_openai_url;
