@@ -8,9 +8,11 @@ import isTauri from "@/utils/isTauri";
 import { invoke } from "@tauri-apps/api/tauri";
 import { ChatContext } from "@/features/chat/chatContext";
 import clsx from "clsx";
+import { AlertContext } from "@/features/alert/alertContext";
 
 export default function VrmViewer({ chatMode }: { chatMode: boolean }) {
   const { chat: bot } = useContext(ChatContext);
+  const { alert } = useContext(AlertContext);
   const { viewer } = useContext(ViewerContext);
   const { getCurrentVrm, vrmList, vrmListAddFile, isLoadingVrmList } =
     useVrmStoreContext();
@@ -80,9 +82,11 @@ export default function VrmViewer({ chatMode }: { chatMode: boolean }) {
             return;
           }
 
-          const file_type = file.name.split(".").pop();
+          const file_type = file.name.split(".").pop()?.toLowerCase();
           if (file_type === "vrm") {
             vrmListAddFile(file, viewer);
+          } else {
+            alert.error("VRM file rejected", "Drop a file with the .vrm extension.");
           }/* else if (file_type === "glb") {
             viewer.loadRoom(URL.createObjectURL(file));
           }*/
@@ -93,6 +97,8 @@ export default function VrmViewer({ chatMode }: { chatMode: boolean }) {
       vrmList.findIndex((value) =>
         value.hashEquals(getCurrentVrm()?.getHash() || ""),
       ) < 0,
+      alert,
+      vrmListAddFile,
       viewer,
     ],
   );

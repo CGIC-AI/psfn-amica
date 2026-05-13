@@ -12,6 +12,7 @@ export type VrmDispatchAction = {
     thumbBlob?: Blob;
     vrmList?: VrmData[];
     callback?: (props: any) => any;
+    errorCallback?: (error: unknown) => void;
 };
 
 export enum VrmStoreActionType {
@@ -26,16 +27,19 @@ export const vrmStoreReducer = (state: VrmData[], action: VrmDispatchAction): Vr
     switch (action.type) {
         case VrmStoreActionType.addItem:
             if (action.itemFile && action.callback)
-                newState = addItem(state, action.itemFile, action.callback);
+                newState = addItem(state, action.itemFile, action.callback, action.errorCallback);
             break;
         case VrmStoreActionType.updateVrmThumb:
             newState = updateVrmThumb(state, action);
+            break;
         case VrmStoreActionType.setVrmList:
-            if (action.vrmList && action.vrmList.length)
+            if (action.vrmList)
                 newState = action.vrmList;
+            break;
         case VrmStoreActionType.loadFromLocalStorage:
             if (action.vrmList && action.callback)
-                newState = LoadFromLocalStorage(action)
+                newState = LoadFromLocalStorage(action);
+            break;
         default:
             break;
     }
@@ -48,17 +52,34 @@ export type AddItemCallbackType = {
     hash: string
 }
 
-const addItem = (vrmList: VrmData[], file: File, callback: (prop: AddItemCallbackType) => any): VrmData[] => {
-    let loadedVrmList = vrmList;
-    const blob = new Blob([file], { type: "application/octet-stream" });
+const addItem = (
+    vrmList: VrmData[],
+    file: File,
+    callback: (prop: AddItemCallbackType) => any,
+    errorCallback?: (error: unknown) => void,
+): VrmData[] => {
+    const blob = new Blob([file], { type: file.type || "application/octet-stream" });
     const url = window.URL.createObjectURL(blob);
     BlobToBase64(blob).then((data: string) => {
         const hash = hashCode(data);
-        if (loadedVrmList.findIndex((vrm: VrmData) => vrm.hashEquals(hash)) == -1) {
-            loadedVrmList = [...loadedVrmList, new VrmData(hash, url, '/vrm/thumb-placeholder.jpg', 'local')];
-            vrmDataProvider.addItem(hash, 'local', data);
-            callback({ url, vrmList: loadedVrmList, hash });
+        const existingVrm = vrmList.find((vrm: VrmData) => vrm.hashEquals(hash));
+        if (existingVrm) {
+            window.URL.revokeObjectURL(url);
+            callback({ url: existingVrm.url, vrmList, hash });
+            return;
         }
+
+        const loadedVrmList = [...vrmList, new VrmData(hash, url, '/vrm/thumb-placeholder.jpg', 'local')];
+        vrmDataProvider
+            .addItem(hash, 'local', data)
+            .then(() => callback({ url, vrmList: loadedVrmList, hash }))
+            .catch((error: unknown) => {
+                window.URL.revokeObjectURL(url);
+                if (errorCallback) errorCallback(error);
+            });
+    }).catch((error: unknown) => {
+        window.URL.revokeObjectURL(url);
+        if (errorCallback) errorCallback(error);
     });
     return vrmList;
 };
@@ -71,14 +92,20 @@ const updateVrmThumb = (vrmList: VrmData[], action: VrmDispatchAction): VrmData[
     const thumbUrl = window.URL.createObjectURL(action.thumbBlob);
     if (vrm instanceof VrmData) {
         vrm.thumbUrl = thumbUrl;
-        let reader = new FileReader();
-        reader.readAsDataURL(action.thumbBlob);
         BlobToBase64(action.thumbBlob).then((data: string) => {
-            vrmDataProvider.updateItemThumb(vrm.getHash(), data);
-            if (action.callback) action.callback(newVrmList);
+            vrmDataProvider
+                .updateItemThumb(vrm.getHash(), data)
+                .then(() => {
+                    if (action.callback) action.callback(newVrmList);
+                })
+                .catch((error: unknown) => {
+                    if (action.errorCallback) action.errorCallback(error);
+                });
+        }).catch((error: unknown) => {
+            if (action.errorCallback) action.errorCallback(error);
         });
     }
-    return vrmList;
+    return newVrmList;
 };
 
 const LoadFromLocalStorage = (action: VrmDispatchAction): VrmData[] => {
@@ -94,7 +121,11 @@ const LoadFromLocalStorage = (action: VrmDispatchAction): VrmData[] => {
             });
             return newList;
         })
-        .then((data: VrmData[]) => { if (action.callback && data) action.callback(data); });
+        .then((data: VrmData[]) => { if (action.callback && data) action.callback(data); })
+        .catch((error: unknown) => {
+            if (action.errorCallback) action.errorCallback(error);
+            if (action.callback && action.vrmList) action.callback(action.vrmList);
+        });
 
     return action.vrmList || new Array<VrmData>;
 };

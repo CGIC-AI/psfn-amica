@@ -75,6 +75,7 @@ import { useVrmStoreContext } from "@/features/vrmStore/vrmStoreContext";
 import { OpenRouterSettings } from "./settings/OpenRouterSettingsPage";
 import { ExternalAPIPage } from "./settings/ExternalAPIPage";
 import { KokoroSettingsPage } from "./settings/KokoroSettingsPage";
+import { AlertContext } from "@/features/alert/alertContext";
 
 
 export const Settings = ({
@@ -83,6 +84,7 @@ export const Settings = ({
   onClickClose: () => void;
 }) => {
   const { viewer } = useContext(ViewerContext);
+  const { alert } = useContext(AlertContext);
   const { vrmList, vrmListAddFile } = useVrmStoreContext();
   const psfnConduitMode = isPsfnConduitMode();
   useKeyboardShortcut("Escape", onClickClose);
@@ -212,15 +214,17 @@ export const Settings = ({
       const file = files[0];
       if (!file) return;
 
-      const file_type = file.name.split(".").pop();
+      const file_type = file.name.split(".").pop()?.toLowerCase();
 
       if (file_type === "vrm") {
         vrmListAddFile(file, viewer);
+      } else {
+        alert.error("VRM file rejected", "Choose a file with the .vrm extension.");
       }
 
       event.target.value = "";
     },
-    [viewer]
+    [alert, viewer, vrmListAddFile]
   );
 
   function handleChangeBgImgFile(event: React.ChangeEvent<HTMLInputElement>) {
