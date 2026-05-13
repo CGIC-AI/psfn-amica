@@ -71,21 +71,21 @@ NEXT_PUBLIC_RENDER_ANTIALIAS=true
 NEXT_PUBLIC_RENDER_PIXEL_RATIO_CAP=2
 ```
 
-Conduit mode defaults these local Amica systems off:
+Conduit mode defaults local model/STT/TTS/vision loops off while keeping Amica's avatar animation loop available:
 
 ```bash
 NEXT_PUBLIC_CHATBOT_BACKEND=psfn_conduit
 NEXT_PUBLIC_TTS_BACKEND=none
 NEXT_PUBLIC_STT_BACKEND=none
 NEXT_PUBLIC_VISION_BACKEND=none
-NEXT_PUBLIC_AMICA_LIFE_ENABLED=false
-NEXT_PUBLIC_AMICA_LIFE_MODE=off
+NEXT_PUBLIC_AMICA_LIFE_ENABLED=true
+NEXT_PUBLIC_AMICA_LIFE_MODE=animation_only
 NEXT_PUBLIC_EXTERNAL_API_ENABLED=false
 NEXT_PUBLIC_REASONING_ENGINE_ENABLED=false
 NEXT_PUBLIC_AUTOSEND_FROM_MIC=false
 ```
 
-You can still set explicit deployment overrides for debugging, but that should be treated as legacy mode behavior.
+Set `NEXT_PUBLIC_AMICA_LIFE_ENABLED=false` only when you intentionally want a static avatar. Other explicit local-AI overrides should be treated as legacy mode behavior.
 
 ## Satellite Hub Environment
 
