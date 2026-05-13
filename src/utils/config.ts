@@ -1,8 +1,46 @@
 import { handleConfig, serverConfig } from "@/features/externalAPI/externalAPI";
 
+export const AMICA_RUNTIME_MODE_LEGACY = "legacy";
+export const AMICA_RUNTIME_MODE_PSFN_CONDUIT = "psfn_conduit";
+
+export type AmicaRuntimeMode =
+  | typeof AMICA_RUNTIME_MODE_LEGACY
+  | typeof AMICA_RUNTIME_MODE_PSFN_CONDUIT;
+
+type RuntimeEnv = Record<string, string | undefined>;
+
+export function resolveAmicaRuntimeMode(env: RuntimeEnv = process.env): AmicaRuntimeMode {
+  const explicitMode = env.NEXT_PUBLIC_AMICA_RUNTIME_MODE?.trim().toLowerCase();
+
+  if (
+    explicitMode === AMICA_RUNTIME_MODE_PSFN_CONDUIT ||
+    explicitMode === "psfn" ||
+    explicitMode === "conduit"
+  ) {
+    return AMICA_RUNTIME_MODE_PSFN_CONDUIT;
+  }
+
+  if (explicitMode === AMICA_RUNTIME_MODE_LEGACY || explicitMode === "standalone") {
+    return AMICA_RUNTIME_MODE_LEGACY;
+  }
+
+  if (env.NEXT_PUBLIC_PSFN_CONDUIT_MODE?.trim().toLowerCase() === "true") {
+    return AMICA_RUNTIME_MODE_PSFN_CONDUIT;
+  }
+
+  return AMICA_RUNTIME_MODE_LEGACY;
+}
+
+const amicaRuntimeMode = resolveAmicaRuntimeMode();
+const psfnConduitRuntime = amicaRuntimeMode === AMICA_RUNTIME_MODE_PSFN_CONDUIT;
 const defaultName = process.env.NEXT_PUBLIC_NAME ?? "Assistant";
 
+function runtimeDefault(legacyValue: string, conduitValue: string): string {
+  return psfnConduitRuntime ? conduitValue : legacyValue;
+}
+
 export const defaults = {
+  amica_runtime_mode: process.env.NEXT_PUBLIC_AMICA_RUNTIME_MODE ?? amicaRuntimeMode,
   // AllTalk TTS specific settings
   localXTTS_url: process.env.NEXT_PUBLIC_LOCALXTTS_URL ?? 'http://127.0.0.1:7851',
   alltalk_version: process.env.NEXT_PUBLIC_ALLTALK_VERSION ?? 'v2',
@@ -10,8 +48,8 @@ export const defaults = {
   alltalk_language: process.env.NEXT_PUBLIC_ALLTALK_LANGUAGE ?? 'en',
   alltalk_rvc_voice: process.env.NEXT_PUBLIC_ALLTALK_RVC_VOICE ?? 'Disabled',
   alltalk_rvc_pitch: process.env.NEXT_PUBLIC_ALLTALK_RVC_PITCH ?? '0',
-  autosend_from_mic: 'true',
-  wake_word_enabled: 'false',
+  autosend_from_mic: process.env.NEXT_PUBLIC_AUTOSEND_FROM_MIC ?? runtimeDefault('true', 'false'),
+  wake_word_enabled: process.env.NEXT_PUBLIC_WAKE_WORD_ENABLED ?? runtimeDefault('false', 'false'),
   wake_word: 'Hello',
   time_before_idle_sec: '20',
   debug_gfx: 'false',
@@ -26,9 +64,9 @@ export const defaults = {
   mtoon_debug_mode: 'none',
   mtoon_material_type: 'mtoon',
   language: process.env.NEXT_PUBLIC_LANGUAGE ?? 'en',
-  show_introduction: process.env.NEXT_PUBLIC_SHOW_INTRODUCTION ?? 'true',
+  show_introduction: process.env.NEXT_PUBLIC_SHOW_INTRODUCTION ?? runtimeDefault('true', 'false'),
   show_arbius_introduction: process.env.NEXT_PUBLIC_SHOW_ARBIUS_INTRODUCTION ?? 'false',
-  show_add_to_homescreen: process.env.NEXT_PUBLIC_SHOW_ADD_TO_HOMESCREEN ?? 'true',
+  show_add_to_homescreen: process.env.NEXT_PUBLIC_SHOW_ADD_TO_HOMESCREEN ?? runtimeDefault('true', 'false'),
   show_settings_button: process.env.NEXT_PUBLIC_SHOW_SETTINGS_BUTTON ?? 'true',
   show_message_input: process.env.NEXT_PUBLIC_SHOW_MESSAGE_INPUT ?? 'true',
   collapse_menu_column: process.env.NEXT_PUBLIC_COLLAPSE_MENU_COLUMN ?? 'false',
@@ -41,7 +79,7 @@ export const defaults = {
   animation_url: process.env.NEXT_PUBLIC_ANIMATION_URL ?? '/animations/idle_loop.vrma',
   animation_procedural: process.env.NEXT_PUBLIC_ANIMATION_PROCEDURAL ?? 'false',
   voice_url: process.env.NEXT_PUBLIC_VOICE_URL ?? '',
-  chatbot_backend: process.env.NEXT_PUBLIC_CHATBOT_BACKEND ?? 'openai',
+  chatbot_backend: process.env.NEXT_PUBLIC_CHATBOT_BACKEND ?? runtimeDefault('openai', 'psfn_conduit'),
   arbius_llm_model_id: process.env.NEXT_PUBLIC_ARBIUS_LLM_MODEL_ID ?? 'default',
   openai_apikey: process.env.NEXT_PUBLIC_OPENAI_APIKEY ?? 'default',
   openai_url: process.env.NEXT_PUBLIC_OPENAI_URL ?? 'https://api.openai.com',
@@ -49,6 +87,18 @@ export const defaults = {
   http_referer: process.env.NEXT_PUBLIC_HTTP_REFERER ?? '',
   psfn_channel_type: process.env.NEXT_PUBLIC_PSFN_CHANNEL_TYPE ?? '',
   psfn_channel_id: process.env.NEXT_PUBLIC_PSFN_CHANNEL_ID ?? '',
+  psfn_hub_ws_url: process.env.NEXT_PUBLIC_PSFN_HUB_WS_URL ?? '',
+  psfn_realtime_enabled: process.env.NEXT_PUBLIC_PSFN_REALTIME_ENABLED ?? runtimeDefault('false', 'true'),
+  psfn_device_id: process.env.NEXT_PUBLIC_PSFN_DEVICE_ID ?? 'amica-browser',
+  psfn_device_name: process.env.NEXT_PUBLIC_PSFN_DEVICE_NAME ?? 'Amica Browser',
+  psfn_session_id: process.env.NEXT_PUBLIC_PSFN_SESSION_ID ?? '',
+  psfn_satellite_id: process.env.NEXT_PUBLIC_PSFN_SATELLITE_ID ?? 'amica',
+  psfn_satellite_name: process.env.NEXT_PUBLIC_PSFN_SATELLITE_NAME ?? 'Amica',
+  psfn_capabilities_input: process.env.NEXT_PUBLIC_PSFN_CAPABILITIES_INPUT ?? 'text',
+  psfn_capabilities_output: process.env.NEXT_PUBLIC_PSFN_CAPABILITIES_OUTPUT ?? 'text,subtitle,streamed_audio,animation,expression,gaze',
+  psfn_capabilities_control: process.env.NEXT_PUBLIC_PSFN_CAPABILITIES_CONTROL ?? 'interrupt,presence,session_attach',
+  psfn_capabilities_safety: process.env.NEXT_PUBLIC_PSFN_CAPABILITIES_SAFETY ?? 'local_only',
+  psfn_vision_upload_enabled: process.env.NEXT_PUBLIC_PSFN_VISION_UPLOAD_ENABLED ?? 'false',
   psfn_satellite_bridge_enabled: process.env.NEXT_PUBLIC_PSFN_SATELLITE_BRIDGE_ENABLED ?? 'false',
   llamacpp_url: process.env.NEXT_PUBLIC_LLAMACPP_URL ?? 'http://127.0.0.1:8080',
   llamacpp_stop_sequence: process.env.NEXT_PUBLIC_LLAMACPP_STOP_SEQUENCE ?? '(End)||[END]||Note||***||You:||User:||</s>',
@@ -62,9 +112,9 @@ export const defaults = {
   openrouter_url: process.env.NEXT_PUBLIC_OPENROUTER_URL ?? 'https://openrouter.ai/api/v1',
   openrouter_model: process.env.NEXT_PUBLIC_OPENROUTER_MODEL ?? 'openai/gpt-3.5-turbo',
   tts_muted: 'false',
-  tts_backend: process.env.NEXT_PUBLIC_TTS_BACKEND ?? 'piper',
-  stt_backend: process.env.NEXT_PUBLIC_STT_BACKEND ?? 'whisper_browser',
-  vision_backend: process.env.NEXT_PUBLIC_VISION_BACKEND ?? 'vision_openai',
+  tts_backend: process.env.NEXT_PUBLIC_TTS_BACKEND ?? runtimeDefault('piper', 'none'),
+  stt_backend: process.env.NEXT_PUBLIC_STT_BACKEND ?? runtimeDefault('whisper_browser', 'none'),
+  vision_backend: process.env.NEXT_PUBLIC_VISION_BACKEND ?? runtimeDefault('vision_openai', 'none'),
   vision_system_prompt: process.env.NEXT_PUBLIC_VISION_SYSTEM_PROMPT ?? `Look at the image as you would if you are a human, be concise, witty and charming.`,
   vision_openai_apikey: process.env.NEXT_PUBLIC_VISION_OPENAI_APIKEY ?? 'default',
   vision_openai_url: process.env.NEXT_PUBLIC_VISION_OPENAI_URL ?? 'https://api.openai.com',
@@ -102,8 +152,8 @@ export const defaults = {
   speecht5_speaker_embedding_url: process.env.NEXT_PUBLIC_SPEECHT5_SPEAKER_EMBEDDING_URL ?? '/speecht5_speaker_embeddings/cmu_us_slt_arctic-wav-arctic_a0001.bin',
   coqui_apikey: process.env.NEXT_PUBLIC_COQUI_APIKEY ?? "",
   coqui_voice_id: process.env.NEXT_PUBLIC_COQUI_VOICEID ?? "71c6c3eb-98ca-4a05-8d6b-f8c2b5f9f3a3",
-  amica_life_enabled: process.env.NEXT_PUBLIC_AMICA_LIFE_ENABLED ?? 'true',
-  amica_life_mode: process.env.NEXT_PUBLIC_AMICA_LIFE_MODE ?? 'full',
+  amica_life_enabled: process.env.NEXT_PUBLIC_AMICA_LIFE_ENABLED ?? runtimeDefault('true', 'false'),
+  amica_life_mode: process.env.NEXT_PUBLIC_AMICA_LIFE_MODE ?? runtimeDefault('full', 'off'),
   reasoning_engine_enabled: process.env.NEXT_PUBLIC_REASONING_ENGINE_ENABLED ?? 'false',
   reasoning_engine_url: process.env.NEXT_PUBLIC_REASONING_ENGINE_URL ?? '',
   external_api_enabled: process.env.NEXT_PUBLIC_EXTERNAL_API_ENABLED ?? 'false',
@@ -164,6 +214,10 @@ export function config(key: string): string {
   throw new Error(`config key not found: ${key}`);
 }
 
+export function isPsfnConduitMode(): boolean {
+  return config("amica_runtime_mode") === AMICA_RUNTIME_MODE_PSFN_CONDUIT;
+}
+
 export async function updateConfig(key: string, value: string) {
   try {
     const localKey = prefixed(key);
@@ -198,6 +252,38 @@ export async function resetConfig() {
 function buildDeploymentOwnedOverrides(): Record<string, string> {
   const overrides: Record<string, string> = {};
 
+  if (psfnConduitRuntime) {
+    for (const key of [
+      "amica_runtime_mode",
+      "autosend_from_mic",
+      "wake_word_enabled",
+      "show_introduction",
+      "show_add_to_homescreen",
+      "chatbot_backend",
+      "tts_backend",
+      "stt_backend",
+      "vision_backend",
+      "amica_life_enabled",
+      "amica_life_mode",
+      "reasoning_engine_enabled",
+      "external_api_enabled",
+      "psfn_realtime_enabled",
+      "psfn_capabilities_input",
+      "psfn_capabilities_output",
+      "psfn_capabilities_control",
+      "psfn_capabilities_safety",
+      "psfn_vision_upload_enabled",
+    ]) {
+      overrides[key] = (<any>defaults)[key];
+    }
+  }
+
+  if (
+    process.env.NEXT_PUBLIC_AMICA_RUNTIME_MODE !== undefined ||
+    process.env.NEXT_PUBLIC_PSFN_CONDUIT_MODE !== undefined
+  ) {
+    overrides.amica_runtime_mode = defaults.amica_runtime_mode;
+  }
   if (process.env.NEXT_PUBLIC_VRM_URL || process.env.NEXT_PUBLIC_VRM_HASH) {
     overrides.vrm_url = defaults.vrm_url;
     overrides.vrm_hash = "";
@@ -220,6 +306,42 @@ function buildDeploymentOwnedOverrides(): Record<string, string> {
   }
   if (process.env.NEXT_PUBLIC_PSFN_CHANNEL_ID !== undefined) {
     overrides.psfn_channel_id = defaults.psfn_channel_id;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_HUB_WS_URL !== undefined) {
+    overrides.psfn_hub_ws_url = defaults.psfn_hub_ws_url;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_REALTIME_ENABLED !== undefined) {
+    overrides.psfn_realtime_enabled = defaults.psfn_realtime_enabled;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_DEVICE_ID !== undefined) {
+    overrides.psfn_device_id = defaults.psfn_device_id;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_DEVICE_NAME !== undefined) {
+    overrides.psfn_device_name = defaults.psfn_device_name;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_SESSION_ID !== undefined) {
+    overrides.psfn_session_id = defaults.psfn_session_id;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_SATELLITE_ID !== undefined) {
+    overrides.psfn_satellite_id = defaults.psfn_satellite_id;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_SATELLITE_NAME !== undefined) {
+    overrides.psfn_satellite_name = defaults.psfn_satellite_name;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_CAPABILITIES_INPUT !== undefined) {
+    overrides.psfn_capabilities_input = defaults.psfn_capabilities_input;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_CAPABILITIES_OUTPUT !== undefined) {
+    overrides.psfn_capabilities_output = defaults.psfn_capabilities_output;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_CAPABILITIES_CONTROL !== undefined) {
+    overrides.psfn_capabilities_control = defaults.psfn_capabilities_control;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_CAPABILITIES_SAFETY !== undefined) {
+    overrides.psfn_capabilities_safety = defaults.psfn_capabilities_safety;
+  }
+  if (process.env.NEXT_PUBLIC_PSFN_VISION_UPLOAD_ENABLED !== undefined) {
+    overrides.psfn_vision_upload_enabled = defaults.psfn_vision_upload_enabled;
   }
   if (process.env.NEXT_PUBLIC_PSFN_SATELLITE_BRIDGE_ENABLED !== undefined) {
     overrides.psfn_satellite_bridge_enabled = defaults.psfn_satellite_bridge_enabled;

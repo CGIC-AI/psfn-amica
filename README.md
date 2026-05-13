@@ -125,6 +125,8 @@ npm run tauri dev
 
 View the [documentation](https://docs.heyamica.com) for more information on how to configure and use Amica.
 
+This fork also includes [PSFN conduit mode documentation](docs/overview/psfn-conduit-mode.md) for running Amica as the VRM presentation surface behind PSFN Satellite Hub and PSFN Framework.
+
 ## 📜 History
 
 This project originated as a fork of ChatVRM by Pixiv:

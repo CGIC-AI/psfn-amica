@@ -4,10 +4,9 @@ import {
   addSatelliteBridgeClient,
   removeSatelliteBridgeClient,
   sendSatelliteBridgeEvent,
+  validateSatelliteBridgeEvent,
 } from "@/features/psfnSatelliteBridge/server";
 import type { SatelliteBridgeEvent } from "@/features/psfnSatelliteBridge/types";
-
-const MAX_AUDIO_BASE64_LENGTH = 2_000_000;
 
 export const config = {
   api: {
@@ -45,14 +44,14 @@ export default function handler(req: NextApiRequest, res: NextApiResponse): void
     return;
   }
 
-  const event = req.body as SatelliteBridgeEvent;
+  const event = req.body as unknown;
   const validationError = validateSatelliteBridgeEvent(event);
   if (validationError) {
     res.status(400).json({ error: validationError });
     return;
   }
 
-  sendSatelliteBridgeEvent(event);
+  sendSatelliteBridgeEvent(event as SatelliteBridgeEvent);
   res.status(200).json({ ok: true });
 }
 
@@ -70,65 +69,4 @@ function handleSseConnection(req: NextApiRequest, res: NextApiResponse): void {
     removeSatelliteBridgeClient(client);
     res.end();
   });
-}
-
-function validateSatelliteBridgeEvent(event: SatelliteBridgeEvent | null | undefined): string | null {
-  if (!event || typeof event !== "object") {
-    return "Bridge event payload is required.";
-  }
-  const eventType = typeof event.type === "string" ? event.type : "";
-  if (!eventType) {
-    return "Bridge event type is required.";
-  }
-  if (!("data" in event) || !event.data || typeof event.data !== "object") {
-    return "Bridge event data is required.";
-  }
-  const sessionId = String((event.data as { sessionId?: unknown }).sessionId || "").trim();
-  if (!sessionId) {
-    return "Bridge event sessionId is required.";
-  }
-
-  if (eventType === "user.final") {
-    const text = String((event.data as { text?: unknown }).text || "").trim();
-    return text ? null : "User bridge text is required.";
-  }
-
-  if (eventType === "assistant.segment" || eventType === "assistant.final") {
-    const text = String((event.data as { text?: unknown }).text || "").trim();
-    const audioBase64 = String((event.data as { audioBase64?: unknown }).audioBase64 || "").trim();
-    const mimeType = String((event.data as { mimeType?: unknown }).mimeType || "").trim();
-    if (!text) return "Assistant bridge text is required.";
-    if (!audioBase64) return "Assistant bridge audio is required.";
-    if (audioBase64.length > MAX_AUDIO_BASE64_LENGTH) {
-      return "Assistant bridge audio payload is too large.";
-    }
-    if (!mimeType) return "Assistant bridge mimeType is required.";
-    return null;
-  }
-
-  if (eventType === "interrupt") {
-    return null;
-  }
-
-  if (eventType === "face.clear") {
-    return null;
-  }
-
-  if (eventType === "face.target") {
-    const x = Number((event.data as { x?: unknown }).x);
-    const y = Number((event.data as { y?: unknown }).y);
-    const confidence = Number((event.data as { confidence?: unknown }).confidence);
-    if (!Number.isFinite(x) || x < -1 || x > 1) {
-      return "Face target x must be a finite number between -1 and 1.";
-    }
-    if (!Number.isFinite(y) || y < -1 || y > 1) {
-      return "Face target y must be a finite number between -1 and 1.";
-    }
-    if (!Number.isFinite(confidence) || confidence < 0 || confidence > 1) {
-      return "Face target confidence must be a finite number between 0 and 1.";
-    }
-    return null;
-  }
-
-  return `Unsupported bridge event type: ${eventType}`;
 }

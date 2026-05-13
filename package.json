@@ -13,6 +13,7 @@
     "lint": "next lint",
     "test": "jest",
     "test:ci": "jest --ci --reporters='./github-actions-reporter.js'",
+    "smoke:psfn-conduit": "node scripts/smoke_psfn_conduit_realtime.js && node scripts/smoke_psfn_conduit_vrm_controls.js && node scripts/smoke_psfn_conduit_lazy_ai_imports.js",
     "act": "act -j test",
     "tauri": "tauri",
     "generate:paths": "npx node scripts/generate_paths.js",

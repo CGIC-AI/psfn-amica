@@ -11,6 +11,8 @@
 * [Other Features](./overview/other-features.md)
 * [Use Cases](./overview/use-cases.md)
 * [Amica vs Other Tools](./overview/amica-vs-other-tools.md)
+* [PSFN Conduit Mode](./overview/psfn-conduit-mode.md)
+* [PSFN Cleanup Plan](./overview/psfn-cleanup-plan.md)
 
 ## 🌳 Getting Started
 

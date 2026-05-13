@@ -19,10 +19,11 @@ import { CheckCircleIcon } from '@heroicons/react/24/outline';
 import { useKeyboardShortcut } from "@/hooks/useKeyboardShortcut";
 import { TextButton } from "@/components/textButton";
 import { ViewerContext } from "@/features/vrmViewer/viewerContext";
-import { config, updateConfig } from "@/utils/config";
+import { config, isPsfnConduitMode, updateConfig } from "@/utils/config";
 
 
 import { Link } from "./settings/common";
+import { getSettingsMenuKeys } from "./settings/menuKeys";
 
 import { MenuPage } from './settings/MenuPage';
 import { LanguagePage } from './settings/LanguagePage';
@@ -83,6 +84,7 @@ export const Settings = ({
 }) => {
   const { viewer } = useContext(ViewerContext);
   const { vrmList, vrmListAddFile } = useVrmStoreContext();
+  const psfnConduitMode = isPsfnConduitMode();
   useKeyboardShortcut("Escape", onClickClose);
 
   const [page, setPage] = useState('main_menu');
@@ -354,17 +356,17 @@ export const Settings = ({
     switch(page) {
     case 'main_menu':
       return <MenuPage
-        keys={["appearance", "amica_life", "chatbot", "language", "tts", "stt", "vision", "developer", "external_api", "reset_settings", "community"]}
+        keys={getSettingsMenuKeys(page, psfnConduitMode)}
         menuClick={handleMenuClick} />;
 
     case 'appearance':
       return <MenuPage
-        keys={["background_img", "background_color", "background_video", "character_model", "character_animation"]}
+        keys={getSettingsMenuKeys(page, psfnConduitMode)}
         menuClick={handleMenuClick} />;
 
     case 'chatbot':
       return <MenuPage
-        keys={["chatbot_backend", "name", "system_prompt", "arbius_llm_settings", "chatgpt_settings", "psfn_settings", "llamacpp_settings", "ollama_settings", "koboldai_settings", "moshi_settings", "openrouter_settings"]}
+        keys={getSettingsMenuKeys(page, psfnConduitMode)}
         menuClick={handleMenuClick} />;
 
     case 'language':
@@ -374,17 +376,17 @@ export const Settings = ({
 
     case 'tts':
       return <MenuPage
-        keys={["tts_backend", "elevenlabs_settings", "speecht5_settings", "coquiLocal_settings", "openai_tts_settings", "piper_settings", "localXTTS_settings", "kokoro_settings", "rvc_settings"]}
+        keys={getSettingsMenuKeys(page, psfnConduitMode)}
         menuClick={handleMenuClick} />;
 
     case 'stt':
       return <MenuPage
-        keys={["stt_backend", "stt_wake_word", "whisper_openai_settings", "whispercpp_settings"]}
+        keys={getSettingsMenuKeys(page, psfnConduitMode)}
         menuClick={handleMenuClick} />;
 
     case 'vision':
       return <MenuPage
-        keys={["vision_backend", "vision_llamacpp_settings", "vision_ollama_settings", "vision_openai_settings", "vision_system_prompt"]}
+        keys={getSettingsMenuKeys(page, psfnConduitMode)}
         menuClick={handleMenuClick} />;
 
     case 'reset_settings':

@@ -1,102 +1,36 @@
 import { Queue } from "typescript-collections";
-import { Message, Role, Screenplay, Talk, textsToScreenplay } from "./messages";
-import { Viewer } from "@/features/vrmViewer/viewer";
-import { Alert } from "@/features/alert/alert";
+import { textsToScreenplay } from "./messages";
+import type { Message, Role, Screenplay, Talk } from "./messages";
+import type { Viewer } from "@/features/vrmViewer/viewer";
+import type { Alert } from "@/features/alert/alert";
 
-import { getEchoChatResponseStream } from "./echoChat";
-import {
-  getArbiusChatResponseStream,
-} from "./arbiusChat";
-import {
-  getOpenAiChatResponseStream,
-  getOpenAiVisionChatResponse,
-} from "./openAiChat";
-import {
-  getLlamaCppChatResponseStream,
-  getLlavaCppChatResponse,
-} from "./llamaCppChat";
-import { getWindowAiChatResponseStream } from "./windowAiChat";
-import {
-  getOllamaChatResponseStream,
-  getOllamaVisionChatResponse,
-} from "./ollamaChat";
-import { getKoboldAiChatResponseStream } from "./koboldAiChat";
-import { getReasoingEngineChatResponseStream } from "./reasoiningEngineChat";
+import type { AmicaLife } from "@/features/amicaLife/amicaLife";
 
-import { rvc } from "@/features/rvc/rvc";
-import { coquiLocal } from "@/features/coquiLocal/coquiLocal";
-import { piper } from "@/features/piper/piper";
-import { elevenlabs } from "@/features/elevenlabs/elevenlabs";
-import { speecht5 } from "@/features/speecht5/speecht5";
-import { openaiTTS } from "@/features/openaiTTS/openaiTTS";
-import { localXTTSTTS } from "@/features/localXTTS/localXTTS";
-import { kokoro } from "../kokoro/kokoro";
-
-import { AmicaLife } from "@/features/amicaLife/amicaLife";
-
-import { config, updateConfig } from "@/utils/config";
+import { config, isPsfnConduitMode, updateConfig } from "@/utils/config";
 import { cleanTalk } from "@/utils/cleanTalk";
 import { processResponse } from "@/utils/processResponse";
 import { wait } from "@/utils/wait";
 import isDev from '@/utils/isDev';
 import type { SatelliteBridgeEvent } from "@/features/psfnSatelliteBridge/types";
+import { PsfnRealtimeSatelliteClient } from "@/features/psfnSatelliteBridge/realtimeClient";
+import { buildPsfnRealtimeConfig } from "@/features/psfnSatelliteBridge/realtimeProtocol";
+import type { HubMessageEvent } from "@/features/psfnSatelliteBridge/realtimeProtocol";
+import { joinMessageSegments, resolveSatelliteSegmentOrder } from "./satellitePlayback";
+import { resolveVisionRoute, validateVisionImageBase64 } from "./visionRouting";
 
 import { isCharacterIdle, characterIdleTime, resetIdleTimer } from "@/utils/isIdle";
-import { getOpenRouterChatResponseStream } from './openRouterChat';
-import { handleUserInput } from '../externalAPI/externalAPI';
-import { loadVRMAnimation } from '@/lib/VRMAnimation/loadVRMAnimation';
 
 type Speak = {
   audioBuffer: ArrayBuffer | null;
   screenplay: Screenplay;
   streamIdx: number;
+  bubble?: boolean;
 };
 
 type TTSJob = {
   screenplay: Screenplay;
   streamIdx: number;
 };
-
-function joinMessageSegments(current: string, next: string): string {
-  const currentTrimmed = current.trim();
-  const nextTrimmed = next.trim();
-  if (!currentTrimmed) {
-    return nextTrimmed;
-  }
-  if (!nextTrimmed) {
-    return currentTrimmed;
-  }
-  if (currentTrimmed === nextTrimmed) {
-    return currentTrimmed;
-  }
-  if (nextTrimmed.includes(currentTrimmed)) {
-    return nextTrimmed;
-  }
-  if (currentTrimmed.includes(nextTrimmed)) {
-    return currentTrimmed;
-  }
-  const overlap = findSegmentOverlap(currentTrimmed, nextTrimmed);
-  if (overlap > 0) {
-    return `${currentTrimmed}${nextTrimmed.slice(overlap)}`;
-  }
-  if (/\s$/.test(currentTrimmed) || /^\s/.test(nextTrimmed)) {
-    return `${currentTrimmed}${nextTrimmed}`;
-  }
-  if (/^[,.;:!?)}\]]/.test(nextTrimmed)) {
-    return `${currentTrimmed}${nextTrimmed}`;
-  }
-  return `${currentTrimmed} ${nextTrimmed}`;
-}
-
-function findSegmentOverlap(current: string, next: string): number {
-  const maxOverlap = Math.min(current.length, next.length);
-  for (let size = maxOverlap; size > 0; size -= 1) {
-    if (current.slice(-size) === next.slice(0, size)) {
-      return size;
-    }
-  }
-  return 0;
-}
 
 export class Chat {
   public initialized: boolean;
@@ -142,6 +76,11 @@ export class Chat {
 
   private eventSource: EventSource | null = null
   private satelliteEventSource: EventSource | null = null;
+  private psfnRealtimeClient: PsfnRealtimeSatelliteClient | null = null;
+  private psfnRealtimeAssistantText: string;
+  private psfnRealtimeAudioChunks: string[];
+  private psfnRealtimeAudioStreamIdx: number | null;
+  private lastOutboundUserText: string;
 
   constructor() {
     this.initialized = false;
@@ -163,6 +102,10 @@ export class Chat {
     this.satelliteTurnStreams = new Map();
     this.satelliteCurrentTurnId = null;
     this.satelliteLastSegmentIndex = -1;
+    this.psfnRealtimeAssistantText = "";
+    this.psfnRealtimeAudioChunks = [];
+    this.psfnRealtimeAudioStreamIdx = null;
+    this.lastOutboundUserText = "";
 
     this.lastAwake = 0;
   }
@@ -203,6 +146,7 @@ export class Chat {
 
     this.initSSE();
     this.initSatelliteBridge();
+    this.initPsfnRealtimeSatellite();
   }
 
   public setMessageList(messages: Message[]) {
@@ -216,6 +160,7 @@ export class Chat {
   }
 
   public async handleRvc(audio: any) {
+    const { rvc } = await import("@/features/rvc/rvc");
     const rvcModelName = config("rvc_model_name");
     const rvcIndexPath = config("rvc_index_path");
     const rvcF0upKey = parseInt(config("rvc_f0_upkey"));
@@ -300,7 +245,9 @@ export class Chat {
           }
         }
 
-        this.bubbleMessage("assistant", speak.screenplay.text);
+        if (speak.bubble !== false) {
+          this.bubbleMessage("assistant", speak.screenplay.text);
+        }
 
         if (speak.audioBuffer) {
           this.setChatSpeaking!(true);
@@ -415,6 +362,7 @@ export class Chat {
   }
 
   public async interrupt() {
+    const shouldSendHubInterrupt = isPsfnConduitMode() && this.psfnRealtimeClient?.isConnected();
     this.currentStreamIdx++;
     try {
       if (this.reader) {
@@ -435,11 +383,20 @@ export class Chat {
     this.speakJobs.clear();
     this.viewer?.model?.stopSpeaking();
     this.setChatSpeaking?.(false);
+    this.setChatProcessing?.(false);
+    if (shouldSendHubInterrupt) {
+      this.psfnRealtimeClient?.interrupt();
+    }
   }
 
   // this happens either from text or from voice / whisper completion
   public async receiveMessageFromUser(message: string, amicaLife: boolean) {
     if (message === null || message === "") {
+      return;
+    }
+
+    if (isPsfnConduitMode()) {
+      await this.receiveMessageFromPsfnConduit(message);
       return;
     }
 
@@ -454,6 +411,7 @@ export class Chat {
       console.log("receiveMessageFromUser", message);
 
       // For external API
+      const { handleUserInput } = await import("../externalAPI/externalAPI");
       await handleUserInput(message);
 
       this.amicaLife?.receiveMessageFromUser(message);
@@ -506,6 +464,7 @@ export class Chat {
               ...this.messageList!,
               { role: "user", content: data},
             ];
+            const { getEchoChatResponseStream } = await import("./echoChat");
             let stream = await getEchoChatResponseStream(messages);
             this.streams.push(stream);
             this.handleChatResponseStream();
@@ -513,6 +472,7 @@ export class Chat {
           
           case 'animation':
             console.log('Animation data received:', data);
+            const { loadVRMAnimation } = await import('@/lib/VRMAnimation/loadVRMAnimation');
             const animation = await loadVRMAnimation(`/animations/${data}`);
             if (!animation) {
               throw new Error("Loading animation failed");
@@ -630,6 +590,188 @@ export class Chat {
     }
   }
 
+  public initPsfnRealtimeSatellite() {
+    if (!isPsfnConduitMode() || config("psfn_realtime_enabled") !== "true") {
+      return;
+    }
+
+    const realtimeConfig = buildPsfnRealtimeConfig(config);
+    if (!realtimeConfig.url) {
+      console.warn("PSFN conduit mode is enabled, but psfn_hub_ws_url is empty.");
+      return;
+    }
+
+    this.closePsfnRealtimeSatellite();
+    this.psfnRealtimeClient = new PsfnRealtimeSatelliteClient(realtimeConfig, {
+      onOpen: () => {
+        console.log("Connected to PSFN Satellite Hub websocket.");
+      },
+      onClose: () => {
+        console.warn("Disconnected from PSFN Satellite Hub websocket.");
+        this.setChatProcessing?.(false);
+      },
+      onError: (message) => {
+        console.error(message);
+        this.alert?.error("PSFN Satellite Hub", message);
+      },
+      onSessionReady: (message) => {
+        console.log("PSFN Satellite Hub session ready", message.sessionId, message.channelId);
+      },
+      onHelloAck: (message) => {
+        console.log("PSFN Satellite Hub hello acknowledged", message.sessionId, message.channelId);
+      },
+      onMessage: (message) => {
+        this.handlePsfnRealtimeMessage(message);
+      },
+      onAudioStart: () => {
+        this.psfnRealtimeAudioChunks = [];
+        this.psfnRealtimeAudioStreamIdx = this.currentStreamIdx;
+      },
+      onAudioChunk: (audioBase64) => {
+        this.psfnRealtimeAudioChunks.push(audioBase64);
+      },
+      onAudioEnd: () => {
+        this.enqueuePsfnRealtimeAudio();
+      },
+      onInterrupt: () => {
+        this.handlePsfnRealtimeInterrupt();
+      },
+      onStatus: (message) => {
+        console.debug("PSFN Satellite Hub status", message);
+      },
+    });
+    this.psfnRealtimeClient.connect();
+  }
+
+  public closePsfnRealtimeSatellite() {
+    this.psfnRealtimeClient?.close();
+    this.psfnRealtimeClient = null;
+  }
+
+  private async receiveMessageFromPsfnConduit(message: string) {
+    console.time("performance_interrupting");
+    console.debug("interrupting...");
+    await this.interruptForPsfnUserText();
+    console.timeEnd("performance_interrupting");
+    await wait(0);
+
+    if (!this.psfnRealtimeClient) {
+      this.initPsfnRealtimeSatellite();
+    }
+
+    if (!this.psfnRealtimeClient?.isConnected()) {
+      const errMsg = "PSFN Satellite Hub websocket is not connected.";
+      console.error(errMsg);
+      this.alert?.error("PSFN Satellite Hub", errMsg);
+      return;
+    }
+
+    const sent = this.psfnRealtimeClient.sendUserText(message, true);
+    if (!sent) {
+      return;
+    }
+
+    this.lastOutboundUserText = message.trim();
+    this.psfnRealtimeAssistantText = "";
+    this.updateAwake();
+    this.setChatProcessing?.(true);
+  }
+
+  private async interruptForPsfnUserText() {
+    const client = this.psfnRealtimeClient;
+    this.psfnRealtimeClient = null;
+    await this.interrupt();
+    this.psfnRealtimeClient = client;
+  }
+
+  private handlePsfnRealtimeMessage(message: HubMessageEvent) {
+    const data = message.data;
+    if (!data || typeof data.content !== "string") {
+      return;
+    }
+
+    if (data.role === "user") {
+      if (data.live) {
+        this.setShownMessage?.("user");
+        this.setUserMessage?.(data.content);
+        return;
+      }
+
+      if (data.final) {
+        this.currentStreamIdx += 1;
+        this.psfnRealtimeAssistantText = "";
+        this.psfnRealtimeAudioChunks = [];
+        this.psfnRealtimeAudioStreamIdx = this.currentStreamIdx;
+        this.lastOutboundUserText = "";
+        this.updateAwake();
+        this.bubbleMessage("user", data.content);
+        this.setChatProcessing?.(true);
+      }
+      return;
+    }
+
+    if (data.role !== "assistant") {
+      return;
+    }
+
+    if (data.live) {
+      this.psfnRealtimeAssistantText += data.content;
+      this.setRealtimeAssistantMessage(this.psfnRealtimeAssistantText);
+      return;
+    }
+
+    if (data.final) {
+      this.psfnRealtimeAssistantText = data.content;
+      this.bubbleMessage("assistant", data.content);
+      this.setChatProcessing?.(false);
+    }
+  }
+
+  private setRealtimeAssistantMessage(message: string) {
+    this.currentAssistantMessage = message.trimStart();
+    this.setUserMessage?.("");
+    this.setAssistantMessage?.(this.currentAssistantMessage);
+    this.flushCurrentUserMessage();
+    this.setChatLog?.([
+      ...this.messageList!,
+      { role: "assistant", content: this.currentAssistantMessage },
+    ]);
+    this.setShownMessage?.("assistant");
+  }
+
+  private enqueuePsfnRealtimeAudio() {
+    if (this.psfnRealtimeAudioChunks.length === 0) {
+      return;
+    }
+
+    const text = this.psfnRealtimeAssistantText.trim() || this.currentAssistantMessage;
+    const screenplay = textsToScreenplay([text || "[neutral]"])[0];
+    if (!screenplay) {
+      return;
+    }
+
+    this.speakJobs.enqueue({
+      audioBuffer: decodeBase64AudioChunks(this.psfnRealtimeAudioChunks),
+      screenplay,
+      streamIdx: this.psfnRealtimeAudioStreamIdx ?? this.currentStreamIdx,
+      bubble: false,
+    });
+    this.psfnRealtimeAudioChunks = [];
+    this.psfnRealtimeAudioStreamIdx = null;
+  }
+
+  private handlePsfnRealtimeInterrupt() {
+    this.currentStreamIdx += 1;
+    this.psfnRealtimeAssistantText = "";
+    this.psfnRealtimeAudioChunks = [];
+    this.psfnRealtimeAudioStreamIdx = null;
+    this.ttsJobs.clear();
+    this.speakJobs.clear();
+    this.viewer?.model?.stopSpeaking();
+    this.setChatSpeaking?.(false);
+    this.setChatProcessing?.(false);
+  }
+
   private async enqueueSatelliteAssistantReply(
     text: string,
     audioBase64: string,
@@ -641,26 +783,25 @@ export class Chat {
       console.warn("Dropping satellite assistant segment for unknown turn", turnId);
       return;
     }
-    if (turnId) {
-      if (this.satelliteCurrentTurnId !== turnId) {
-        this.satelliteCurrentTurnId = turnId;
-        this.satelliteLastSegmentIndex = -1;
-      }
-      if (
-        typeof segmentIndex === "number" &&
-        segmentIndex <= this.satelliteLastSegmentIndex
-      ) {
-        console.warn("Dropping duplicate or stale satellite assistant segment", {
-          turnId,
-          segmentIndex,
-          lastSegmentIndex: this.satelliteLastSegmentIndex,
-        });
-        return;
-      }
-      if (typeof segmentIndex === "number") {
-        this.satelliteLastSegmentIndex = segmentIndex;
-      }
+    const segmentOrder = resolveSatelliteSegmentOrder(
+      {
+        currentTurnId: this.satelliteCurrentTurnId,
+        lastSegmentIndex: this.satelliteLastSegmentIndex,
+      },
+      turnId,
+      segmentIndex,
+    );
+    if (!segmentOrder.accepted) {
+      console.warn("Dropping duplicate or stale satellite assistant segment", {
+        turnId,
+        segmentIndex,
+        lastSegmentIndex: this.satelliteLastSegmentIndex,
+      });
+      return;
     }
+    this.satelliteCurrentTurnId = segmentOrder.state.currentTurnId;
+    this.satelliteLastSegmentIndex = segmentOrder.state.lastSegmentIndex;
+
     const audioBuffer = decodeBase64Audio(audioBase64);
     const screenplay = textsToScreenplay([text])[0];
     if (!screenplay) {
@@ -853,6 +994,7 @@ export class Chat {
         }
         case "elevenlabs": {
           const voiceId = config("elevenlabs_voiceid");
+          const { elevenlabs } = await import("@/features/elevenlabs/elevenlabs");
           const voice = await elevenlabs(talk.message, voiceId, talk.style);
           if (rvcEnabled) {
             return await this.handleRvc(voice.audio);
@@ -861,6 +1003,7 @@ export class Chat {
         }
         case "speecht5": {
           const speakerEmbeddingUrl = config("speecht5_speaker_embedding_url");
+          const { speecht5 } = await import("@/features/speecht5/speecht5");
           const voice = await speecht5(talk.message, speakerEmbeddingUrl);
           if (rvcEnabled) {
             return await this.handleRvc(voice.audio);
@@ -868,6 +1011,7 @@ export class Chat {
           return voice.audio;
         }
         case "openai_tts": {
+          const { openaiTTS } = await import("@/features/openaiTTS/openaiTTS");
           const voice = await openaiTTS(talk.message);
           if (rvcEnabled) {
             return await this.handleRvc(voice.audio);
@@ -875,6 +1019,7 @@ export class Chat {
           return voice.audio;
         }
         case "localXTTS": {
+          const { localXTTSTTS } = await import("@/features/localXTTS/localXTTS");
           const voice = await localXTTSTTS(talk.message);
           if (rvcEnabled) {
             return await this.handleRvc(voice.audio);
@@ -882,6 +1027,7 @@ export class Chat {
           return voice.audio;
         }
         case "piper": {
+          const { piper } = await import("@/features/piper/piper");
           const voice = await piper(talk.message);
           if (rvcEnabled) {
             return await this.handleRvc(voice.audio);
@@ -889,10 +1035,12 @@ export class Chat {
           return voice.audio;
         }
         case "coquiLocal": {
+          const { coquiLocal } = await import("@/features/coquiLocal/coquiLocal");
           const voice = await coquiLocal(talk.message);
           return voice.audio;
         }
         case "kokoro": {
+          const { kokoro } = await import("../kokoro/kokoro");
           const voice = await kokoro(talk.message);
           return voice.audio;
         }
@@ -914,38 +1062,73 @@ export class Chat {
     const conversationMessages = messages.filter((msg) => msg.role !== "system");
 
     if (config("reasoning_engine_enabled") === "true") {
+      const { getReasoingEngineChatResponseStream } = await import("./reasoiningEngineChat");
       return getReasoingEngineChatResponseStream(systemPrompt, conversationMessages)
     } 
 
     switch (chatbotBackend) {
-      case "arbius_llm":
+      case "arbius_llm": {
+        const { getArbiusChatResponseStream } = await import("./arbiusChat");
         return getArbiusChatResponseStream(messages);
+      }
       case "chatgpt":
-      case "psfn":
+      case "psfn": {
+        const { getOpenAiChatResponseStream } = await import("./openAiChat");
         return getOpenAiChatResponseStream(messages);
-      case "llamacpp":
+      }
+      case "psfn_conduit":
+        throw new Error("PSFN conduit mode uses Satellite Hub websocket; local chat streaming is disabled.");
+      case "llamacpp": {
+        const { getLlamaCppChatResponseStream } = await import("./llamaCppChat");
         return getLlamaCppChatResponseStream(messages);
-      case "windowai":
+      }
+      case "windowai": {
+        const { getWindowAiChatResponseStream } = await import("./windowAiChat");
         return getWindowAiChatResponseStream(messages);
-      case "ollama":
+      }
+      case "ollama": {
+        const { getOllamaChatResponseStream } = await import("./ollamaChat");
         return getOllamaChatResponseStream(messages);
-      case "koboldai":
+      }
+      case "koboldai": {
+        const { getKoboldAiChatResponseStream } = await import("./koboldAiChat");
         return getKoboldAiChatResponseStream(messages);
-      case 'openrouter':
+      }
+      case 'openrouter': {
+        const { getOpenRouterChatResponseStream } = await import("./openRouterChat");
         return getOpenRouterChatResponseStream(messages);
+      }
     }
 
+    const { getEchoChatResponseStream } = await import("./echoChat");
     return getEchoChatResponseStream(messages);
   }
 
   public async getVisionResponse(imageData: string) {
     try {
+      const validationError = validateVisionImageBase64(imageData);
+      if (validationError) {
+        this.alert?.error("Vision capture rejected", validationError);
+        return;
+      }
+
+      const visionRoute = resolveVisionRoute({
+        psfnConduitMode: isPsfnConduitMode(),
+        psfnVisionUploadEnabled: config("psfn_vision_upload_enabled") === "true",
+      });
+      if (visionRoute.type !== "legacy_local") {
+        console.warn(visionRoute.reason);
+        this.alert?.error("PSFN vision unavailable", visionRoute.reason);
+        return;
+      }
+
       const visionBackend = config("vision_backend");
 
       console.debug("vision_backend", visionBackend);
 
       let res = "";
       if (visionBackend === "vision_llamacpp") {
+        const { getLlavaCppChatResponse } = await import("./llamaCppChat");
         const messages: Message[] = [
           { role: "system", content: config("vision_system_prompt") },
           ...this.messageList!,
@@ -957,6 +1140,7 @@ export class Chat {
 
         res = await getLlavaCppChatResponse(messages, imageData);
       } else if (visionBackend === "vision_ollama") {
+        const { getOllamaVisionChatResponse } = await import("./ollamaChat");
         const messages: Message[] = [
           { role: "system", content: config("vision_system_prompt") },
           ...this.messageList!,
@@ -968,6 +1152,7 @@ export class Chat {
 
         res = await getOllamaVisionChatResponse(messages, imageData);
       } else if (visionBackend === "vision_openai") {
+        const { getOpenAiVisionChatResponse } = await import("./openAiChat");
         const messages: Message[] = [
           { role: "user", content: config("vision_system_prompt") },
           ...this.messageList! as any[],
@@ -1011,10 +1196,28 @@ export class Chat {
 }
 
 function decodeBase64Audio(encoded: string): ArrayBuffer {
+  return decodeBase64AudioChunks([encoded]);
+}
+
+function decodeBase64AudioChunks(encodedChunks: string[]): ArrayBuffer {
+  const chunks = encodedChunks.map((encoded) => decodeBase64Bytes(encoded));
+  const byteLength = chunks.reduce((total, chunk) => total + chunk.byteLength, 0);
+  const combined = new Uint8Array(byteLength);
+  let offset = 0;
+
+  for (const chunk of chunks) {
+    combined.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  return combined.buffer;
+}
+
+function decodeBase64Bytes(encoded: string): Uint8Array {
   const binary = window.atob(encoded);
   const bytes = new Uint8Array(binary.length);
   for (let index = 0; index < binary.length; index += 1) {
     bytes[index] = binary.charCodeAt(index);
   }
-  return bytes.buffer;
+  return bytes;
 }

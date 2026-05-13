@@ -57,7 +57,7 @@ import { Message, Role } from "@/features/chat/messages";
 import { ChatContext } from "@/features/chat/chatContext";
 import { AlertContext } from "@/features/alert/alertContext";
 
-import { config, updateConfig } from '@/utils/config';
+import { config, isPsfnConduitMode, updateConfig } from '@/utils/config';
 import { isTauri } from '@/utils/isTauri';
 import { langs } from '@/i18n/langs';
 import { VrmStoreProvider } from "@/features/vrmStore/vrmStoreContext";
@@ -68,6 +68,10 @@ import { TimestampedPrompt } from "@/features/amicaLife/eventHandler";
 import { handleChatLogs } from "@/features/externalAPI/externalAPI";
 import { VerticalSwitchBox } from "@/components/switchBox";
 import { ThoughtText } from "@/components/thoughtText";
+import {
+  shouldInitializeAmicaLife,
+  shouldWriteExternalChatLogs,
+} from "@/features/homeRuntime";
 
 function detectVRHeadset() {
   const userAgent = navigator.userAgent.toLowerCase();
@@ -157,6 +161,7 @@ export default function Home() {
   const showSettingsButton = config("show_settings_button") === "true";
   const settingsControlEnabled = collapseMenuColumn || showSettingsButton;
   const satelliteBridgeEnabled = config("psfn_satellite_bridge_enabled") === "true";
+  const psfnConduitMode = isPsfnConduitMode();
 
 
   useEffect(() => {
@@ -392,17 +397,25 @@ export default function Home() {
   }, [bot, viewer]);
 
   useEffect(() => {
+    if (!shouldInitializeAmicaLife({ psfnConduitMode })) {
+      return;
+    }
+
     amicaLife.initialize(
       viewer,
       bot,
       setSubconciousLogs,
       chatSpeaking,
     );
-  }, [amicaLife, bot, viewer]);
+  }, [amicaLife, bot, viewer, psfnConduitMode]);
 
   useEffect(() => {
+    if (!shouldWriteExternalChatLogs({ psfnConduitMode })) {
+      return;
+    }
+
     handleChatLogs(chatLog);
-  }, [chatLog]);
+  }, [chatLog, psfnConduitMode]);
 
   // this exists to prevent build errors with ssr
   useEffect(() => setShowContent(true), []);
