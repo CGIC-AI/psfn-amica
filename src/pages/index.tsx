@@ -397,7 +397,11 @@ export default function Home() {
   }, [bot, viewer]);
 
   useEffect(() => {
-    if (!shouldInitializeAmicaLife({ psfnConduitMode })) {
+    if (!shouldInitializeAmicaLife({
+      psfnConduitMode,
+      amicaLifeEnabled: config("amica_life_enabled") === "true",
+      amicaLifeMode: config("amica_life_mode"),
+    })) {
       return;
     }
 

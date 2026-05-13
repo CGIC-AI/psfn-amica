@@ -14,7 +14,7 @@ import isDev from '@/utils/isDev';
 import type { SatelliteBridgeEvent } from "@/features/psfnSatelliteBridge/types";
 import { PsfnRealtimeSatelliteClient } from "@/features/psfnSatelliteBridge/realtimeClient";
 import { buildPsfnRealtimeConfig } from "@/features/psfnSatelliteBridge/realtimeProtocol";
-import type { HubMessageEvent } from "@/features/psfnSatelliteBridge/realtimeProtocol";
+import type { HubMessageEvent, RuntimeIdentity } from "@/features/psfnSatelliteBridge/realtimeProtocol";
 import { joinMessageSegments, resolveSatelliteSegmentOrder } from "./satellitePlayback";
 import { resolveVisionRoute, validateVisionImageBase64 } from "./visionRouting";
 
@@ -616,9 +616,11 @@ export class Chat {
       },
       onSessionReady: (message) => {
         console.log("PSFN Satellite Hub session ready", message.sessionId, message.channelId);
+        void this.applyPsfnRuntimeIdentity(message.identity);
       },
       onHelloAck: (message) => {
         console.log("PSFN Satellite Hub hello acknowledged", message.sessionId, message.channelId);
+        void this.applyPsfnRuntimeIdentity(message.identity);
       },
       onMessage: (message) => {
         this.handlePsfnRealtimeMessage(message);
@@ -724,6 +726,19 @@ export class Chat {
       this.psfnRealtimeAssistantText = data.content;
       this.bubbleMessage("assistant", data.content);
       this.setChatProcessing?.(false);
+    }
+  }
+
+  private async applyPsfnRuntimeIdentity(identity?: RuntimeIdentity) {
+    const assistantName = identity?.companion?.name?.trim();
+    const userName = identity?.user?.name?.trim();
+
+    if (assistantName) {
+      await updateConfig("psfn_assistant_name", assistantName);
+      await updateConfig("name", assistantName);
+    }
+    if (userName) {
+      await updateConfig("psfn_user_name", userName);
     }
   }
 

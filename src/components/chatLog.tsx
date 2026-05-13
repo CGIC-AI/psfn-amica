@@ -11,6 +11,14 @@ import { config } from "@/utils/config";
 import { ChatContext } from "@/features/chat/chatContext";
 import { saveAs } from 'file-saver';
 
+function assistantDisplayName(): string {
+  return (config('psfn_assistant_name') || config('name') || 'Assistant').toUpperCase();
+}
+
+function userDisplayName(fallback: string): string {
+  return (config('psfn_user_name') || fallback || 'You').toUpperCase();
+}
+
 export const ChatLog = ({
   messages,
 }: {
@@ -186,8 +194,8 @@ function Chat({
         )}
       >
         <div className="text-bold text-white">
-          {role === "assistant" && config('name').toUpperCase()}
-          {role === "user" && t("YOU")}
+          {role === "assistant" && assistantDisplayName()}
+          {role === "user" && userDisplayName(t("YOU"))}
         </div>
         <button
           className="text-right"

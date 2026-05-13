@@ -1,11 +1,18 @@
 type HomeRuntimeOptions = {
   psfnConduitMode: boolean;
+  amicaLifeEnabled?: boolean;
+  amicaLifeMode?: string;
 };
 
 export function shouldInitializeAmicaLife({
   psfnConduitMode,
+  amicaLifeEnabled = false,
+  amicaLifeMode = "",
 }: HomeRuntimeOptions): boolean {
-  return !psfnConduitMode;
+  return !psfnConduitMode || (
+    amicaLifeEnabled &&
+    amicaLifeMode === "animation_only"
+  );
 }
 
 export function shouldWriteExternalChatLogs({

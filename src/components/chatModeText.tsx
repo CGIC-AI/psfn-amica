@@ -5,6 +5,14 @@ import { IconButton } from "./iconButton";
 import { useTranslation } from "react-i18next";
 import { Message } from "@/features/chat/messages";
 
+function assistantDisplayName(): string {
+    return (config('psfn_assistant_name') || config('name') || 'Assistant').toUpperCase();
+}
+
+function userDisplayName(fallback: string): string {
+    return (config('psfn_user_name') || fallback || 'You').toUpperCase();
+}
+
 export const ChatModeText = ({ messages }: { messages: Message[] }) => {
     const showMessageInput = config("show_message_input") === "true";
     const chatScrollRef = useRef<HTMLDivElement>(null);
@@ -75,8 +83,8 @@ function Chat({
                             "px-2.5 py-1 rounded-lg rounded-tl-none rounded-tr-none shadow-sm",
                             role === "assistant" ? "bg-pink-600/80" : "bg-cyan-600/80",
                         )}>
-                            {role === "assistant" && config('name').toUpperCase()}
-                            {role === "user" && t("YOU")}
+                            {role === "assistant" && assistantDisplayName()}
+                            {role === "user" && userDisplayName(t("YOU"))}
                         </span>
 
                         {role === "assistant" && (

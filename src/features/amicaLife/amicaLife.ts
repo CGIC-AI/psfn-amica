@@ -81,6 +81,10 @@ export class AmicaLife {
 
     this.loadIdleTextPrompt(null);
 
+    if (this.animationOnlyMode()) {
+      this.triggerMessage = true;
+    }
+
     // This loop will run depending on Amica Life Enabled/Disabled config
     this.processingIdle();
 
