@@ -49,7 +49,8 @@ export const vrmStoreReducer = (state: VrmData[], action: VrmDispatchAction): Vr
 export type AddItemCallbackType = {
     url: string,
     vrmList: VrmData[],
-    hash: string
+    hash: string,
+    fileName: string
 }
 
 const addItem = (
@@ -65,14 +66,14 @@ const addItem = (
         const existingVrm = vrmList.find((vrm: VrmData) => vrm.hashEquals(hash));
         if (existingVrm) {
             window.URL.revokeObjectURL(url);
-            callback({ url: existingVrm.url, vrmList, hash });
+            callback({ url: existingVrm.url, vrmList, hash, fileName: file.name });
             return;
         }
 
         const loadedVrmList = [...vrmList, new VrmData(hash, url, '/vrm/thumb-placeholder.jpg', 'local')];
         vrmDataProvider
             .addItem(hash, 'local', data)
-            .then(() => callback({ url, vrmList: loadedVrmList, hash }))
+            .then(() => callback({ url, vrmList: loadedVrmList, hash, fileName: file.name }))
             .catch((error: unknown) => {
                 window.URL.revokeObjectURL(url);
                 if (errorCallback) errorCallback(error);

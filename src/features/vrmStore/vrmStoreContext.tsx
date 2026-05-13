@@ -1,4 +1,4 @@
-import { Dispatch, PropsWithChildren, SetStateAction, createContext, useContext, useEffect, useReducer, useState } from "react";
+import { Dispatch, PropsWithChildren, SetStateAction, createContext, useCallback, useContext, useEffect, useReducer, useState } from "react";
 import { VrmData } from "./vrmData";
 import { vrmList } from "@/paths";
 import { thumbPrefix } from "@/components/settings/common";
@@ -31,15 +31,14 @@ export const VrmStoreProvider = ({ children }: PropsWithChildren<{}>): JSX.Eleme
     const [isLoadingVrmList, setIsLoadingVrmList] = useState(true);
     const [loadedVrmList, vrmListDispatch] = useReducer(vrmStoreReducer, vrmInitList);
 
-    const reportVrmError = (title: string, error: unknown) => {
+    const reportVrmError = useCallback((title: string, error: unknown) => {
         const message = error instanceof Error ? error.message : "Check that the file is a valid VRM and try again.";
         console.error(title, error);
         alert.error(title, message);
-    };
+    }, [alert]);
 
-    const vrmListAddFile = (file: File, viewer: Viewer) => {
+    const vrmListAddFile = useCallback((file: File, viewer: Viewer) => {
         vrmListDispatch({ type: VrmStoreActionType.addItem, itemFile: file, callback: (callbackProp: AddItemCallbackType) => {
-            vrmListDispatch({ type: VrmStoreActionType.setVrmList, vrmList: callbackProp.vrmList });
             viewer.loadVrm(callbackProp.url, (progress: string) => {
               // TODO handle loading progress
             })
@@ -48,6 +47,8 @@ export const VrmStoreProvider = ({ children }: PropsWithChildren<{}>): JSX.Eleme
                 updateConfig("vrm_url", callbackProp.url);
                 updateConfig("vrm_hash", callbackProp.hash);
                 updateConfig("vrm_save_type", "local");
+                vrmListDispatch({ type: VrmStoreActionType.setVrmList, vrmList: callbackProp.vrmList });
+                alert.success("VRM loaded", callbackProp.fileName);
                 viewer.getScreenshotBlob((thumbBlob: Blob | null) => {
                   if (!thumbBlob) {
                     vrmListDispatch({ type: VrmStoreActionType.setVrmList, vrmList: callbackProp.vrmList });
@@ -60,14 +61,14 @@ export const VrmStoreProvider = ({ children }: PropsWithChildren<{}>): JSX.Eleme
               })
               .catch((error: unknown) => reportVrmError("VRM load failed", error));
         }, errorCallback: (error: unknown) => reportVrmError("VRM import failed", error) });
-    };
+    }, [alert, reportVrmError]);
 
     useEffect(() => {
         vrmListDispatch({ type: VrmStoreActionType.loadFromLocalStorage, vrmList: vrmInitList, callback: (updatedVmList: VrmData[]) => {
             vrmListDispatch({ type: VrmStoreActionType.setVrmList, vrmList: updatedVmList });
             setIsLoadingVrmList(false);
         }, errorCallback: (error: unknown) => reportVrmError("VRM list restore failed", error) });
-    }, []);
+    }, [reportVrmError]);
 
     const getCurrentVrm = () => {
         return config('vrm_save_type') == 'local' ? loadedVrmList.find(vrm => vrm.getHash() == config('vrm_hash') ) : loadedVrmList.find(vrm => vrm.url == config('vrm_url') );
