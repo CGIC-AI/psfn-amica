@@ -1,0 +1,8 @@
+{
+  "database": "dolt",
+  "backend": "dolt",
+  "dolt_mode": "server",
+  "dolt_database": "psfn_amica",
+  "project_id": "4c71a819-16da-427f-93a4-afa7c9ab925a",
+  "global_dolt_database": "beads_global"
+}
