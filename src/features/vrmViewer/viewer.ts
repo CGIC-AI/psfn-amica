@@ -1008,18 +1008,22 @@ export class Viewer {
    * VRMのheadノードを参照してカメラ位置を調整する
    */
   public resetCamera() {
-    const headNode = this.model?.vrm?.humanoid.getNormalizedBoneNode("head");
+    if (!this.camera || !this.cameraControls || !this.model?.vrm?.scene) return;
 
-    if (headNode) {
-      const headPos = headNode.getWorldPosition(new THREE.Vector3());
-      this.camera?.position.set(
-        this.camera.position.x,
-        headPos.y,
-        this.camera.position.z,
-      );
-      this.cameraControls?.target.set(headPos.x, headPos.y, headPos.z);
-      this.cameraControls?.update();
-    }
+    this.model.vrm.scene.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(this.model.vrm.scene);
+    const center = box.getCenter(new THREE.Vector3());
+    const size = box.getSize(new THREE.Vector3());
+    const headNode = this.model?.vrm?.humanoid.getNormalizedBoneNode("head");
+    const target = headNode
+      ? headNode.getWorldPosition(new THREE.Vector3())
+      : center;
+    const modelHeight = Number.isFinite(size.y) && size.y > 0 ? size.y : 1.6;
+    const distance = THREE.MathUtils.clamp(modelHeight * 1.9, 2.5, 8);
+
+    this.camera.position.set(target.x, target.y, target.z + distance);
+    this.cameraControls.target.set(target.x, target.y, target.z);
+    this.cameraControls.update();
   }
 
   public resetCameraLerp() {
