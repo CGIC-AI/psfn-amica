@@ -72,7 +72,7 @@ export const defaults = {
   collapse_menu_column: process.env.NEXT_PUBLIC_COLLAPSE_MENU_COLUMN ?? 'false',
   bg_color: process.env.NEXT_PUBLIC_BG_COLOR ?? '',
   bg_url: process.env.NEXT_PUBLIC_BG_URL ?? '/bg/bg-room2.jpg',
-  vrm_url: process.env.NEXT_PUBLIC_VRM_URL ?? process.env.NEXT_PUBLIC_VRM_HASH ?? '/vrm/AvatarSample_A.vrm',
+  vrm_url: process.env.NEXT_PUBLIC_VRM_URL ?? process.env.NEXT_PUBLIC_VRM_HASH ?? '/vrm/PSFN-A.vrm',
   vrm_hash: '',
   vrm_save_type: 'web',
   youtube_videoid: '',
@@ -181,16 +181,27 @@ export function prefixed(key: string) {
   return `chatvrm_${key}`;
 }
 
+function shouldSyncExternalConfig(): boolean {
+  return (
+    defaults.external_api_enabled === "true" &&
+    Boolean(process.env.NEXT_PUBLIC_DEVELOPMENT_BASE_URL)
+  );
+}
+
 // Ensure syncLocalStorage runs only on the server side and once
 if (typeof window !== "undefined") {
   applyDeploymentOwnedOverrides();
-  (async () => {
-    await handleConfig("init");
-  })();
+  if (shouldSyncExternalConfig()) {
+    (async () => {
+      await handleConfig("init");
+    })();
+  }
 } else {
-  (async () => {
-    await handleConfig("fetch");
-  })();
+  if (shouldSyncExternalConfig()) {
+    (async () => {
+      await handleConfig("fetch");
+    })();
+  }
 }
 
 export function config(key: string): string {
@@ -227,8 +238,10 @@ export async function updateConfig(key: string, value: string) {
       localStorage.setItem(localKey, value);
     }
 
-    // Sync update to server config
-    await handleConfig("update",{ key, value });
+    // Sync update to server config when the legacy external API is configured.
+    if (shouldSyncExternalConfig()) {
+      await handleConfig("update",{ key, value });
+    }
 
   } catch (e) {
     console.error(`Error updating config for key "${key}": ${e}`);
